@@ -1,0 +1,88 @@
+# Description: Remove RedHat specific file paths and fix LSB headers
+# Author: Jon Bernard <jbernard@debian.org>
+
+--- a/scripts/init.d/cgconfig.in
++++ b/scripts/init.d/cgconfig.in
+@@ -21,10 +21,10 @@
+ 
+ ### BEGIN INIT INFO
+ # Provides:             cgconfig
+-# Required-Start:
+-# Required-Stop:
+-# Should-Start:
+-# Should-Stop:
++# Required-Start:       $remote_fs $syslog
++# Required-Stop:        $remote_fs $syslog
++# Default-Start:        2 3 4 5
++# Default-Stop:         0 1 6
+ # Short-Description:    start and stop the WLM configuration
+ # Description:          This script allows us to create a default configuration
+ ### END INIT INFO
+@@ -48,8 +48,8 @@ servicename=cgconfig
+ 
+ # read the config
+ CREATE_DEFAULT=yes
+-if [ -e /etc/sysconfig/cgconfig ]; then
+-        . /etc/sysconfig/cgconfig
++if [ -e /etc/default/cgconfig ]; then
++        . /etc/default/cgconfig
+ fi
+ 
+ create_default_groups() {
+@@ -104,7 +104,7 @@ create_default_groups() {
+ 
+ start() {
+         echo -n "Starting cgconfig service: "
+-	if [ -f /var/lock/subsys/$servicename ]
++	if [ -f /var/lock/$servicename ]
+         then
+             log_warning_msg "lock file already exists"
+             return
+@@ -125,11 +125,11 @@ start() {
+                 create_default_groups
+         fi
+ 
+-        touch /var/lock/subsys/$servicename
++        touch /var/lock/$servicename
+         retval=$?
+         if [ $retval -ne 0 ]
+         then
+-            log_failure_msg "Failed to touch " /var/lock/subsys/$servicename
++            log_failure_msg "Failed to touch " /var/lock/$servicename
+             return $retval
+         fi
+         log_success_msg
+@@ -139,7 +139,7 @@ start() {
+ stop() {
+     echo -n "Stopping cgconfig service: "
+     cgclear
+-    rm -f /var/lock/subsys/$servicename
++    rm -f /var/lock/$servicename
+     log_success_msg
+ }
+ 
+@@ -174,7 +174,7 @@ case $1 in
+         common
+         start;
+         ;;
+-    'restart')
++    'restart'|'force-reload')
+         common
+ 	stop
+         start
+@@ -185,13 +185,13 @@ case $1 in
+         start
+         ;;
+     'condrestart')
+-        if [ -f /var/lock/subsys/$servicename ] ; then
++        if [ -f /var/lock/$servicename ] ; then
+             stop
+             start
+         fi
+         ;;
+     'status')
+-        if [ -f /var/lock/subsys/$servicename ] ; then
++        if [ -f /var/lock/$servicename ] ; then
+             echo "Running"
+         else
+             echo "Stopped"

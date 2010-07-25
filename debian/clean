@@ -1,0 +1,2 @@
+debian/cgroup-bin.cgconfig.init
+debian/cgroup-bin.cgred.init

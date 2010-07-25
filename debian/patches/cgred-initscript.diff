@@ -1,0 +1,90 @@
+# Description: Remove RedHat specific file paths and fix LSB headers
+# Author: Jon Bernard <jbernard@debian.org>
+
+--- a/scripts/init.d/cgred.in
++++ b/scripts/init.d/cgred.in
+@@ -22,11 +22,11 @@
+ # pidfile: /var/run/cgred.pid
+ #
+ ### BEGIN INIT INFO
+-# Provides:		cgrulesengd
+-# Required-Start:	$local_fs $syslog $cgconfig
+-# Required-Stop:	$local_fs $syslog
+-# Should-Start:		
+-# Should-Stop:		
++# Provides:		cgred
++# Required-Start:	$remote_fs $syslog cgconfig
++# Required-Stop:	$remote_fs $syslog
++# Default-Start:        2 3 4 5
++# Default-Stop:         0 1 6
+ # Short-Description:	start and stop the cgroups rules engine daemon
+ # Description:		CGroup Rules Engine is a tool for automatically using \
+ #			cgroups to classify processes
+@@ -39,12 +39,11 @@ CGRED_BIN=$sbindir/cgrulesengd
+ [ -x $CGRED_BIN ] || exit 1
+ 
+ # Source function library & LSB routines
+-. /etc/rc.d/init.d/functions
+ . /lib/lsb/init-functions
+ 
+ # Read in configuration options.
+-if [ -f "/etc/sysconfig/cgred.conf" ] ; then
+-	. /etc/sysconfig/cgred.conf
++if [ -f "/etc/default/cgred" ] ; then
++	. /etc/default/cgred
+ 	OPTIONS="$NODAEMON $LOG"
+ 	if [ -n "$LOG_FILE" ]; then
+ 		OPTIONS="$OPTIONS --log-file=$LOG_FILE"
+@@ -63,14 +62,14 @@ RETVAL=0
+ start()
+ {
+ 	echo $"Starting CGroup Rules Engine Daemon..."
+-	if [ -f "/var/lock/subsys/$servicename" ] ; then
++	if [ -f "/var/lock/$servicename" ] ; then
+ 		log_failure_msg "$servicename is already running with PID `cat ${pidfile}`"
+ 		return 1
+ 	fi
+-	daemon --check $servicename --pidfile $pidfile $CGRED_BIN $OPTIONS
++	start_daemon -p $pidfile $CGRED_BIN $OPTIONS
+ 	RETVAL=$?
+ 	echo
+-	[ $RETVAL -eq 0 ] && touch /var/lock/subsys/$servicename
++	[ $RETVAL -eq 0 ] && touch /var/lock/$servicename
+ 	echo "`pidof $processname`" > $pidfile
+ }
+ 
+@@ -81,7 +80,7 @@ stop()
+ 	RETVAL=$?
+ 	echo
+ 	if [ $RETVAL -eq 0 ] ; then
+-		rm -f /var/lock/subsys/$servicename
++		rm -f /var/lock/$servicename
+ 		rm -f $pidfile
+ 	fi
+ 	log_success_msg
+@@ -96,21 +95,21 @@ case "$1" in
+ 		stop
+ 		;;
+ 	status)
+-		status -p $pidfile $processname
++		status_of_proc -p $pidfile $processname
+ 		RETVAL=$?
+ 		;;
+-	restart)
++	restart|force-reload)
+ 		stop
+ 		start
+ 		;;
+ 	condrestart)
+-		if [ -f /var/lock/subsys/$servicename ] ; then
++		if [ -f /var/lock/$servicename ] ; then
+ 			stop
+ 			start
+ 		fi
+ 		;;
+ 	reload|flash)
+-		if [ -f /var/lock/subsys/$servicename ] ; then
++		if [ -f /var/lock/$servicename ] ; then
+ 			echo $"Reloading rules configuration..."
+ 			kill -s 12 `cat ${pidfile}`
+ 			RETVAL=$?

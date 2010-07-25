@@ -1,0 +1,5 @@
+usr/bin
+usr/sbin
+usr/share/man
+samples/cgconfig.conf /etc
+samples/cgrules.conf /etc

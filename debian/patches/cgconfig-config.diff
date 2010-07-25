@@ -1,0 +1,18 @@
+# Description: Use reasonable default settings at installation
+# Author: Jon Bernard <jbernard@debian.org>
+
+--- a/samples/cgconfig.conf
++++ b/samples/cgconfig.conf
+@@ -42,7 +42,8 @@
+ #	}
+ #}
+ #
+-#mount {
+-#	cpu = /mnt/cgroups/cpu;
+-#	cpuacct = /mnt/cgroups/cpuacct;
+-#}
++mount {
++	cpu = /mnt/cgroups/cpu;
++	cpuacct = /mnt/cgroups/cpuacct;
++	devices = /mnt/cgroups/devices;
++}

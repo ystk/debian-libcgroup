@@ -1,0 +1,57 @@
+Source: libcgroup
+Priority: extra
+Maintainer: Jon Bernard <jbernard@debian.org>
+Build-Depends: debhelper (>= 7.0.50~), quilt (>= 0.46-7), autoconf, automake, libtool, bison, flex, libpam0g-dev
+Standards-Version: 3.9.0
+Section: libs
+Vcs-Git: git://git.debian.org/git/collab-maint/libcgroup.git
+Vcs-Browser: http://git.debian.org/?p=collab-maint/libcgroup.git;a=summary
+Homepage: http://sourceforge.net/projects/libcg/
+
+Package: libcgroup-dev
+Section: libdevel
+Architecture: any
+Depends: ${misc:Depends}, libcgroup1 (= ${binary:Version})
+Description: Development libraries to develop applications that utilize control groups
+ Control Groups provide a mechanism for aggregating/partitioning sets of tasks,
+ and all their future children, into hierarchical groups with specialized
+ behaviour.
+ .
+ It provides API to create/delete and modify cgroup nodes. It will also in the
+ future allow creation of persistent configuration for control groups and
+ provide scripts to manage that configuration.
+
+Package: libcgroup1
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: A library to control and monitor control groups
+ Control Groups provide a mechanism for aggregating/partitioning sets of tasks,
+ and all their future children, into hierarchical groups with specialized
+ behaviour.
+ .
+ This library allows applications to manipulate, control, administrate and
+ monitor control groups and the associated controllers.
+
+Package: libpam-cgroup
+Section: admin
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: A PAM module to move a user session into a cgroup
+ Control Groups provide a mechanism for aggregating/partitioning sets of tasks,
+ and all their future children, into hierarchical groups with specialized
+ behaviour.
+ .
+ This PAM module will move a user session into an existing cgroup by attempting
+ to match uid and gid against the defined cgroup rules configuration.
+
+Package: cgroup-bin
+Section: admin
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Tools to control and monitor control groups
+ Control Groups provide a mechanism for aggregating/partitioning sets of tasks,
+ and all their future children, into hierarchical groups with specialized
+ behaviour.
+ .
+ These tools help manipulate, control, administrate and monitor control groups
+ and the associated controllers.
