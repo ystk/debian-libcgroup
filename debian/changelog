@@ -1,3 +1,10 @@
+libcgroup (0.36.2-3+squeeze1) stable-security; urgency=low
+
+  * [0cdfa74] Backport upstream fix for CVE-2011-1006
+  * [d5d5690] Backport upstream fix for CVE-2011-1022
+
+ -- Jon Bernard <jbernard@debian.org>  Thu, 03 Mar 2011 20:37:17 -0500
+
 libcgroup (0.36.2-3) unstable; urgency=low
 
   * [a1bd2b] Add device controller to the default configuration

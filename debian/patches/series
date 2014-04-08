@@ -1,3 +1,5 @@
 cgconfig-initscript.diff
 cgred-initscript.diff
 cgconfig-config.diff
+CVE-2011-1006.diff
+CVE-2011-1022.diff
