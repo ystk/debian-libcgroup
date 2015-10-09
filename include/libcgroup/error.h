@@ -5,7 +5,9 @@
 #error "Only <libcgroup.h> should be included directly."
 #endif
 
+#ifndef SWIG
 #include <features.h>
+#endif
 
 __BEGIN_DECLS
 
@@ -57,20 +59,19 @@ enum {
 	ECGROUPNORULES,
 	ECGMOUNTFAIL,
 	/**
-	 * Not an real error, just a auxiliary mark in the enum.
-	 * Please insert further error codes above this.
-	 */
-	ECGSENTINEL,
-	/**
 	 * Not an real error, it just indicates that iterator has come to end
 	 * of sequence and no more items are left.
 	 */
-	ECGEOF,
+	ECGEOF = 50023,
 	/** Failed to parse config file (cgconfig.conf). */
 	ECGCONFIGPARSEFAIL,
 	ECGNAMESPACEPATHS,
 	ECGNAMESPACECONTROLLER,
 	ECGMOUNTNAMESPACE,
+	ECGROUPUNSUPP,
+	ECGCANTSETVALUE,
+	/** Removing of a group failed because it was not empty. */
+	ECGNONEMPTY,
 };
 
 /**

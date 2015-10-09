@@ -21,8 +21,36 @@
 #include <string.h>
 #include <errno.h>
 #include <unistd.h>
+#include <getopt.h>
 
 #include "tools-common.h"
+
+static struct option const long_options[] =
+{
+	{"recursive", no_argument, NULL, 'r'},
+	{"help", no_argument, NULL, 'h'},
+	{"group", required_argument, NULL, 'g'},
+	{NULL, 0, NULL, 0}
+};
+
+static void usage(int status, const char *program_name)
+{
+	if (status != 0) {
+		fprintf(stderr, "Wrong input parameters,"
+			" try %s --help' for more information.\n",
+			program_name);
+		return;
+	}
+	printf("Usage: %s [-h] [-r] [[-g] <controllers>:<path>] ...\n",
+		program_name);
+	printf("Remove control group(s)\n");
+	printf("  -g <controllers>:<path>	Control group to be removed "\
+		"(-g is optional)\n");
+	printf("  -h, --help			Display this help\n");
+	printf("  -r, --recursive		Recursively remove "\
+		"all subgroups\n");
+}
+
 
 int main(int argc, char *argv[])
 {
@@ -31,44 +59,10 @@ int main(int argc, char *argv[])
 	int c;
 	int flags = 0;
 	int final_ret = 0;
-	int capacity = 0;
 
 	struct cgroup_group_spec **cgroup_list = NULL;
 	struct cgroup *cgroup;
 	struct cgroup_controller *cgc;
-
-	if (argc < 2) {
-		fprintf(stderr, "Usage is %s [-r] "
-			"<list of controllers>:<relative path to cgroup> "
-			"[...]\n",
-			argv[0]);
-		return -1;
-	}
-
-	/*
-	 * Parse arguments
-	 */
-	while ((c = getopt(argc, argv, "r")) > 0) {
-		switch (c) {
-		case 'r':
-			flags |= CGFLAG_DELETE_RECURSIVE;
-			break;
-		default:
-			fprintf(stderr, "%s: "
-				"invalid command line option\n",
-				argv[0]);
-			return -1;
-			break;
-		}
-	}
-
-	if (optind >= argc) {
-		fprintf(stderr, "%s: "
-			"no groups to delete\n",
-			argv[0]);
-		ret = -1;
-		goto err;
-	}
 
 	/* initialize libcg */
 	ret = cgroup_init();
@@ -79,17 +73,46 @@ int main(int argc, char *argv[])
 		goto err;
 	}
 
-	capacity = argc - optind;
-	cgroup_list = calloc(capacity, sizeof(struct cgroup_group_spec *));
+	cgroup_list = calloc(argc, sizeof(struct cgroup_group_spec *));
 	if (cgroup_list == NULL) {
 		fprintf(stderr, "%s: out of memory\n", argv[0]);
 		ret = -1;
 		goto err;
 	}
 
+	/*
+	 * Parse arguments
+	 */
+	while ((c = getopt_long(argc, argv, "rhg:",
+		long_options, NULL)) > 0) {
+		switch (c) {
+		case 'r':
+			flags |= CGFLAG_DELETE_RECURSIVE;
+			break;
+		case 'g':
+			ret = parse_cgroup_spec(cgroup_list, optarg, argc);
+			if (ret != 0) {
+				fprintf(stderr,
+					"%s: error parsing cgroup '%s'\n",
+					argv[0], optarg);
+				ret = -1;
+				goto err;
+			}
+			break;
+		case 'h':
+			usage(0, argv[0]);
+			ret = 0;
+			goto err;
+		default:
+			usage(1, argv[0]);
+			ret = -1;
+			goto err;
+		}
+	}
+
 	/* parse groups on command line */
 	for (i = optind; i < argc; i++) {
-		ret = parse_cgroup_spec(cgroup_list, argv[i], capacity);
+		ret = parse_cgroup_spec(cgroup_list, argv[i], argc);
 		if (ret != 0) {
 			fprintf(stderr, "%s: error parsing cgroup '%s'\n",
 					argv[0], argv[i]);
@@ -98,8 +121,8 @@ int main(int argc, char *argv[])
 		}
 	}
 
-	/* for each cgroup to delete */
-	for (i = 0; i < capacity; i++) {
+	/* for each cgroup to be deleted */
+	for (i = 0; i < argc; i++) {
 		if (!cgroup_list[i])
 			break;
 
@@ -145,7 +168,7 @@ int main(int argc, char *argv[])
 	ret = final_ret;
 err:
 	if (cgroup_list) {
-		for (i = 0; i < capacity; i++) {
+		for (i = 0; i < argc; i++) {
 			if (cgroup_list[i])
 				cgroup_free_group_spec(cgroup_list[i]);
 		}

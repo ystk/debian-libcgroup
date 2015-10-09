@@ -1,10 +1,10 @@
-%define soversion 1.0.36
+%define soversion 1.0.41
 %define soversion_major 1
 
 Name: libcgroup
 Summary: Tools and libraries to control and monitor control groups
 Group: System Environment/Libraries
-Version: 0.36.2
+Version: 0.41
 Release:        1%{?dist}
 License: LGPLv2+
 URL: http://libcg.sourceforge.net/
@@ -14,6 +14,7 @@ BuildRequires: pam-devel
 BuildRequires: byacc
 BuildRequires: flex
 BuildRequires: coreutils
+Requires(pre): shadow-utils
 Requires(post): chkconfig, /sbin/service
 Requires(preun): /sbin/chkconfig
 
@@ -59,6 +60,7 @@ cp samples/cgred.conf $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/cgred.conf
 cp samples/cgconfig.sysconfig $RPM_BUILD_ROOT/%{_sysconfdir}/sysconfig/cgconfig
 cp samples/cgconfig.conf $RPM_BUILD_ROOT/%{_sysconfdir}/cgconfig.conf
 cp samples/cgrules.conf $RPM_BUILD_ROOT/%{_sysconfdir}/cgrules.conf
+cp samples/cgsnapshot_blacklist.conf $RPM_BUILD_ROOT/%{_sysconfdir}/cgsnapshot_blacklist.conf
 
 # sanitize pam module, we need only pam_cgroup.so
 mv -f $RPM_BUILD_ROOT/%{_lib}/security/pam_cgroup.so.*.*.* $RPM_BUILD_ROOT/%{_lib}/security/pam_cgroup.so
@@ -71,10 +73,14 @@ rm -f $RPM_BUILD_ROOT/%{_libdir}/libcgroup.so.%{soversion_major}
 ln -sf libcgroup.so.%{soversion} $RPM_BUILD_ROOT/%{_lib}/libcgroup.so.%{soversion_major}
 ln -sf ../../%{_lib}/libcgroup.so.%{soversion} $RPM_BUILD_ROOT/%{_libdir}/libcgroup.so
 rm -f $RPM_BUILD_ROOT/%{_libdir}/*.la
+
 %clean
 rm -rf $RPM_BUILD_ROOT
 
-%post 
+%pre
+getent group cgred >/dev/null || groupadd cgred
+
+%post
 /sbin/ldconfig
 /sbin/chkconfig --add cgred
 /sbin/chkconfig --add cgconfig
@@ -95,8 +101,9 @@ fi
 %config(noreplace) %{_sysconfdir}/sysconfig/cgconfig
 %config(noreplace) %{_sysconfdir}/cgconfig.conf
 %config(noreplace) %{_sysconfdir}/cgrules.conf
+%config(noreplace) %{_sysconfdir}/cgsnapshot_blacklist.conf
 /%{_lib}/libcgroup.so.*
-/bin/cgexec
+%attr(2755, root, cgred) /bin/cgexec
 /bin/cgclassify
 /bin/cgcreate
 /bin/cgget
@@ -107,6 +114,7 @@ fi
 /sbin/cgconfigparser
 /sbin/cgrulesengd
 /sbin/cgclear
+/bin/cgsnapshot
 %attr(0644, root, root) %{_mandir}/man1/*
 %attr(0644, root, root) %{_mandir}/man5/*
 %attr(0644, root, root) %{_mandir}/man8/*
@@ -130,6 +138,8 @@ fi
 
 
 %changelog
+* Tue Nov  2 2010 Jan Safranek <jsafrane@redhat.com> 0.37.rc1-1
+- Add cgsnapshot
 * Thu Feb 18 2010 Dhaval Giani <dhaval.giani@gmail.com> 0.36.rc1-1
 - Add pkgconfig file
 * Tue Jan 19 2010 Balbir Singh <balbir@linux.vnet.ibm.com> 0.35.1

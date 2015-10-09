@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
 	uid_t uid;
 
 	/* Return codes */
-	int ret;
+	int ret = 0;
 
 	if (argc < 2) {
 		printf("Usage: %s <uid_value> \n", argv[0]);
@@ -43,6 +43,12 @@ int main(int argc, char *argv[])
 	}
 
 	pwd = getpwnam(argv[1]);
+	if (!pwd) {
+		fprintf(stderr, "getpwnam() failed: %s\n",
+				strerror(errno));
+		ret = -errno;
+		goto finished;
+	}
 	uid = pwd->pw_uid;
 	fprintf(stdout, "Setting UID to %s (%d).\n", pwd->pw_name, uid);
 	if ((ret = setuid(uid))) {

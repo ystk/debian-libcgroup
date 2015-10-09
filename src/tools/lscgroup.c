@@ -44,11 +44,14 @@ static void usage(int status, const char *program_name)
 		fprintf(stderr, "Wrong input parameters,"
 			" try %s -h' for more information.\n",
 			program_name);
-	} else {
-		fprintf(stdout, "Usage: %s [<controllers>:<path>] [...]\n",
-			program_name);
-		fprintf(stdout, "list all cgroups\n");
+		return;
 	}
+	printf("Usage: %s [-h] [[-g] <controllers>:<path>] [...]\n",
+		program_name);
+	printf("List all cgroups\n");
+	printf("  -g <controllers>:<path>	Control group to be displayed "\
+		"(-g is optional)\n");
+	printf("  -h, --help			Display this help\n");
 }
 
 /*
@@ -98,10 +101,10 @@ static int display_controller_data(char *input_path, char *controller, char *nam
 	trim_filepath(cgroup_dir_path);
 
 	strncpy(input_dir_path, input_path, FILENAME_MAX);
-	/* remove problematic  '/' characters from input path*/
-	trim_filepath(cgroup_dir_path);
 
-	len  = strlen(cgroup_dir_path) - strlen(input_dir_path) + 1;
+	/* remove problematic  '/' characters from input directory path*/
+	trim_filepath(input_dir_path);
+	len  = strlen(cgroup_dir_path) - strlen(input_dir_path);
 	print_info(&info, name, len);
 	while ((ret = cgroup_walk_tree_next(0, &handle, &info, lvl)) == 0)
 		print_info(&info, name, len);
@@ -249,6 +252,7 @@ int main(int argc, char *argv[])
 
 	int ret = 0;
 	int c;
+	int i;
 
 	int flags = 0;
 
@@ -256,26 +260,35 @@ int main(int argc, char *argv[])
 
 	static struct option options[] = {
 		{"help", 0, 0, 'h'},
+		{"group", required_argument, NULL, 'g'},
 		{0, 0, 0, 0}
 	};
 
+	memset(cgroup_list, 0, sizeof(cgroup_list));
+
 	/* parse arguments */
-	while ((c = getopt_long(argc, argv, "h", options, NULL)) > 0) {
+	while ((c = getopt_long(argc, argv, "hg:", options, NULL)) > 0) {
 		switch (c) {
 		case 'h':
 			usage(0, argv[0]);
-			return 0;
+			ret = 0;
+			goto err;
+		case 'g':
+			ret = parse_cgroup_spec(cgroup_list, optarg,
+				CG_HIER_MAX);
+			if (ret) {
+				fprintf(stderr, "%s: cgroup controller"
+					" and path parsing failed (%s)\n",
+					argv[0], optarg);
+				return ret;
+			}
+			break;
 		default:
 			usage(1, argv[0]);
-			return -1;
+			ret = 1;
+			goto err;
 		}
 	}
-
-	memset(cgroup_list, 0, sizeof(cgroup_list));
-
-	/* no cgroup on input */
-	if (optind < argc)
-		flags |= FL_LIST;
 
 	/* read the list of controllers */
 	while (optind < argc) {
@@ -290,8 +303,23 @@ int main(int argc, char *argv[])
 		optind++;
 	}
 
-	/* print the information, based on list of input cgroups and flags */
+	if (cgroup_list[0] != NULL) {
+		/* cgroups on input */
+		flags |= FL_LIST;
+	}
+
+	/* print the information
+	   based on list of input cgroups and flags */
 	ret = cgroup_list_cgroups(argv[0], cgroup_list, flags);
+
+err:
+	if (cgroup_list[0]) {
+		for (i = 0; i < CG_HIER_MAX; i++) {
+			if (cgroup_list[i])
+				cgroup_free_group_spec(cgroup_list[i]);
+		}
+	}
+
 
 	return ret;
 }

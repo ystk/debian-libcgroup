@@ -54,6 +54,8 @@
 #include <linux/connector.h>
 #include <linux/cn_proc.h>
 #include <linux/un.h>
+#include <pwd.h>
+#include <grp.h>
 
 #define NUM_PER_REALLOCATIOM	(100)
 
@@ -65,6 +67,12 @@ int logfacility;
 
 /* Current log level */
 int loglevel;
+
+/* Owner of the socket, -1 means no change */
+uid_t socket_user = -1;
+
+/* Owner of the socket, -1 means no change */
+gid_t socket_group = -1;
 
 /**
  * Prints the usage information for this program and, optionally, an error
@@ -94,34 +102,41 @@ static void usage(FILE* fd, const char* msg, ...)
 		"    -n           | --nodaemom          don't fork daemon\n"
 		"    -d           | --debug             same as -v -v -n -f -\n"
 		"    -Q           | --nolog             disable logging\n"
+		"    -u <user>    | --socket-user=<user> set "
+			CGRULE_CGRED_SOCKET_PATH " socket user\n"
+		"    -g <group>   | --socket-group=<group> set "
+			CGRULE_CGRED_SOCKET_PATH " socket group\n"
 		"    -h           | --help              show this help\n\n"
 		);
 	va_end(ap);
 }
 
 /**
- * Prints a formatted message (like printf()) to all log destinations.
+ * Prints a formatted message (like vprintf()) to all log destinations.
  * Flushes the file stream's buffer so that the message is immediately
  * readable.
  * 	@param level The log level (LOG_EMERG ... LOG_DEBUG)
- * 	@param format The format for the message (printf style)
- * 	@param ... Any args to format (printf style)
+ *	@param format The format for the message (vprintf style)
+ *	@param ap Any args to format (vprintf style)
  */
-void flog(int level, const char *format, ...)
+void flog_write(int level, const char *format,  va_list ap)
 {
-	/* List of args to format */
-	va_list ap;
+	va_list cap;
+	int copy = 0;
 
 	/* Check the log level */
 	if (level > loglevel)
 		return;
 
+	/* copy the argument list if needed - it can be processed only once */
+	if (logfile && logfacility) {
+		copy = 1;
+		va_copy(cap, ap);
+	}
+
 	if (logfile) {
 		/* Print the message to the given stream. */
-		va_start(ap, format);
 		vfprintf(logfile, format, ap);
-		va_end(ap);
-		fprintf(logfile, "\n");
 
 		/*
 		 * Flush the stream's buffer, so the data is readable
@@ -131,10 +146,53 @@ void flog(int level, const char *format, ...)
 	}
 
 	if (logfacility) {
-		va_start(ap, format);
-		vsyslog(LOG_MAKEPRI(logfacility, level), format, ap);
-		va_end(ap);
+		if (copy) {
+			vsyslog(LOG_MAKEPRI(logfacility, level), format, cap);
+			va_end(cap);
+		} else
+			vsyslog(LOG_MAKEPRI(logfacility, level), format, ap);
 	}
+}
+
+/**
+ * Prints a formatted message (like printf()) to all log destinations.
+ * Flushes the file stream's buffer so that the message is immediately
+ * readable.
+ *	@param level The log level (LOG_EMERG ... LOG_DEBUG)
+ *	@param format The format for the message (printf style)
+ *	@param ... Any args to format (printf style)
+ */
+void flog(int level, const char *format, ...)
+{
+	va_list ap;
+	va_start(ap, format);
+	flog_write(level, format, ap);
+	va_end(ap);
+}
+
+/**
+ * Libcgroup logging callback. It must translate libcgroup log levels to
+ * cgrulesengd native (=syslog).
+ */
+void flog_cgroup(void *userdata, int cgroup_level, const char *format,
+		va_list ap)
+{
+	int level = 0;
+	switch (cgroup_level) {
+	case CGROUP_LOG_ERROR:
+		level = LOG_ERR;
+		break;
+	case CGROUP_LOG_WARNING:
+		level = LOG_WARNING;
+		break;
+	case CGROUP_LOG_INFO:
+		level = LOG_INFO;
+		break;
+	case CGROUP_LOG_DEBUG:
+		level = LOG_DEBUG;
+		break;
+	}
+	flog_write(level, format, ap);
 }
 
 struct parent_info {
@@ -155,23 +213,25 @@ static int cgre_store_parent_info(pid_t pid)
 	struct parent_info *info;
 
 	if (clock_gettime(CLOCK_MONOTONIC, &tp) < 0) {
-		flog(LOG_WARNING, "Failed to get time");
+		flog(LOG_WARNING, "Failed to get time\n");
 		return 1;
 	}
 	uptime_ns = ((__u64)tp.tv_sec * 1000 * 1000 * 1000 ) + tp.tv_nsec;
 
 	if (array_pi.index >= array_pi.num_allocation) {
-		array_pi.num_allocation += NUM_PER_REALLOCATIOM;
-		array_pi.parent_info = realloc(array_pi.parent_info,
-					sizeof(info) * array_pi.num_allocation);
-		if (!array_pi.parent_info) {
-			flog(LOG_WARNING, "Failed to allocate memory");
+		int alloc = array_pi.num_allocation + NUM_PER_REALLOCATIOM;
+		void *new_array = realloc(array_pi.parent_info,
+					  sizeof(info) * alloc);
+		if (!new_array) {
+			flog(LOG_WARNING, "Failed to allocate memory\n");
 			return 1;
 		}
+		array_pi.parent_info = new_array;
+		array_pi.num_allocation = alloc;
 	}
 	info = calloc(1, sizeof(struct parent_info));
 	if (!info) {
-		flog(LOG_WARNING, "Failed to allocate memory");
+		flog(LOG_WARNING, "Failed to allocate memory\n");
 		return 1;
 	}
 	info->timestamp = uptime_ns;
@@ -246,18 +306,20 @@ static int cgre_store_unchanged_process(pid_t pid, int flags)
 		return 0;
 	}
 	if (array_unch.index >= array_unch.num_allocation) {
-		array_unch.num_allocation += NUM_PER_REALLOCATIOM;
-		array_unch.proc = realloc(array_unch.proc,
-			sizeof(unchanged_pid_t) * array_unch.num_allocation);
-		if (!array_unch.proc) {
-			flog(LOG_WARNING, "Failed to allocate memory");
+		int alloc = array_unch.num_allocation + NUM_PER_REALLOCATIOM;
+		void *new_array = realloc(array_unch.proc,
+					  sizeof(unchanged_pid_t) * alloc);
+		if (!new_array) {
+			flog(LOG_WARNING, "Failed to allocate memory\n");
 			return 1;
 		}
+		array_unch.proc = new_array;
+		array_unch.num_allocation = alloc;
 	}
 	array_unch.proc[array_unch.index].pid = pid;
 	array_unch.proc[array_unch.index].flags = flags;
 	array_unch.index++;
-	flog(LOG_DEBUG, "Store the unchanged process (PID: %d, FLAGS: %d)",
+	flog(LOG_DEBUG, "Store the unchanged process (PID: %d, FLAGS: %d)\n",
 			pid, flags);
 	return 0;
 }
@@ -274,7 +336,8 @@ static void cgre_remove_unchanged_process(pid_t pid)
 				&array_unch.proc[j + 1],
 				sizeof(struct unchanged_pid));
 		array_unch.index--;
-		flog(LOG_DEBUG, "Remove the unchanged process (PID: %d)", pid);
+		flog(LOG_DEBUG, "Remove the unchanged process (PID: %d)\n",
+				pid);
 		break;
 	}
 	return;
@@ -327,6 +390,12 @@ int cgre_process_event(const struct proc_event *ev, const int type)
 	switch (type) {
 	case PROC_EVENT_UID:
 	case PROC_EVENT_GID:
+		/*
+		 * If the unchanged process, the daemon should not change the
+		 * cgroup of the process.
+		 */
+		if (cgre_is_unchanged_process(ev->event_data.id.process_pid))
+			return 0;
 		pid = ev->event_data.id.process_pid;
 		break;
 	case PROC_EVENT_FORK:
@@ -408,12 +477,12 @@ int cgre_process_event(const struct proc_event *ev, const int type)
 		/* A process finished already and that is not a problem. */
 		ret = 0;
 	} else if (ret) {
-		flog(LOG_WARNING, "Cgroup change for PID: %d, UID: %d, GID: %d,"
-			" PROCNAME: %s FAILED! (Error Code: %d)",
+		flog(LOG_WARNING,
+			"Cgroup change for PID: %d, UID: %d, GID: %d, PROCNAME: %s FAILED! (Error Code: %d)\n",
 			log_pid, log_uid, log_gid, procname, ret);
 	} else {
-		flog(LOG_INFO, "Cgroup change for PID: %d, UID: %d, GID: %d,"
-			" PROCNAME: %s OK",
+		flog(LOG_INFO,
+			"Cgroup change for PID: %d, UID: %d, GID: %d, PROCNAME: %s OK\n",
 			log_pid, log_uid, log_gid, procname);
 		ret = cgre_store_parent_info(pid);
 	}
@@ -440,16 +509,18 @@ static int cgre_handle_msg(struct cn_msg *cn_hdr)
 	ev = (struct proc_event*)cn_hdr->data;
 	switch (ev->what) {
 	case PROC_EVENT_UID:
-		flog(LOG_DEBUG, "UID Event: PID = %d, tGID = %d, rUID = %d,"
-				" eUID = %d", ev->event_data.id.process_pid,
+		flog(LOG_DEBUG,
+				"UID Event: PID = %d, tGID = %d, rUID = %d, eUID = %d\n",
+				ev->event_data.id.process_pid,
 				ev->event_data.id.process_tgid,
 				ev->event_data.id.r.ruid,
 				ev->event_data.id.e.euid);
 		ret = cgre_process_event(ev, PROC_EVENT_UID);
 		break;
 	case PROC_EVENT_GID:
-		flog(LOG_DEBUG, "GID Event: PID = %d, tGID = %d, rGID = %d,"
-				" eGID = %d", ev->event_data.id.process_pid,
+		flog(LOG_DEBUG,
+				"GID Event: PID = %d, tGID = %d, rGID = %d, eGID = %d\n",
+				ev->event_data.id.process_pid,
 				ev->event_data.id.process_tgid,
 				ev->event_data.id.r.rgid,
 				ev->event_data.id.e.egid);
@@ -462,7 +533,7 @@ static int cgre_handle_msg(struct cn_msg *cn_hdr)
 		ret = cgre_process_event(ev, PROC_EVENT_EXIT);
 		break;
 	case PROC_EVENT_EXEC:
-		flog(LOG_DEBUG, "EXEC Event: PID = %d, tGID = %d",
+		flog(LOG_DEBUG, "EXEC Event: PID = %d, tGID = %d\n",
 				ev->event_data.exec.process_pid,
 				ev->event_data.exec.process_tgid);
 		ret = cgre_process_event(ev, PROC_EVENT_EXEC);
@@ -481,24 +552,25 @@ static int cgre_receive_netlink_msg(int sk_nl)
 	struct sockaddr_nl from_nla;
 	socklen_t from_nla_len;
 	struct nlmsghdr *nlh;
-	struct sockaddr_nl kern_nla;
 	struct cn_msg *cn_hdr;
-
-	kern_nla.nl_family = AF_NETLINK;
-	kern_nla.nl_groups = CN_IDX_PROC;
-	kern_nla.nl_pid = 1;
-	kern_nla.nl_pad = 0;
 
 	memset(buff, 0, sizeof(buff));
 	from_nla_len = sizeof(from_nla);
-	memcpy(&from_nla, &kern_nla, sizeof(from_nla));
 	recv_len = recvfrom(sk_nl, buff, sizeof(buff), 0,
 		(struct sockaddr *)&from_nla, &from_nla_len);
 	if (recv_len == ENOBUFS) {
-		flog(LOG_ERR, "ERROR: NETLINK BUFFER FULL, MESSAGE DROPPED!");
+		flog(LOG_ERR, "ERROR: NETLINK BUFFER FULL, MESSAGE DROPPED!\n");
 		return 0;
 	}
 	if (recv_len < 1)
+		return 0;
+
+	if (from_nla_len != sizeof(from_nla)) {
+		flog(LOG_ERR, "Bad address size reading netlink socket\n");
+		return 0;
+	}
+	if (from_nla.nl_groups != CN_IDX_PROC
+	    || from_nla.nl_pid != 0)
 		return 0;
 
 	nlh = (struct nlmsghdr *)buff;
@@ -533,28 +605,38 @@ static void cgre_receive_unix_domain_msg(int sk_unix)
 	caddr_len = sizeof(caddr);
 	fd_client = accept(sk_unix, (struct sockaddr *)&caddr, &caddr_len);
 	if (fd_client < 0) {
-		cgroup_dbg("accept error: %s\n", strerror(errno));
+		flog(LOG_WARNING, "Warning: 'accept' command error: %s\n",
+				strerror(errno));
 		return;
 	}
 	if (read(fd_client, &pid, sizeof(pid)) < 0) {
-		cgroup_dbg("read error: %s\n", strerror(errno));
+		flog(LOG_WARNING, "Warning: 'read' command error: %s\n",
+				strerror(errno));
 		goto close;
 	}
 	sprintf(path, "/proc/%d", pid);
 	if (stat(path, &buff_stat)) {
-		cgroup_dbg("There is not such process (PID: %d)", pid);
+		flog(LOG_WARNING,
+				"Warning: there is no such process (PID: %d)\n",
+				pid);
 		goto close;
 	}
 	if (read(fd_client, &flags, sizeof(flags)) < 0) {
-		cgroup_dbg("read error: %s\n", strerror(errno));
+		flog(LOG_WARNING, "Warning: error reading daemon socket: %s\n",
+				strerror(errno));
 		goto close;
 	}
-	if (cgre_store_unchanged_process(pid, flags))
-		goto close;
-
+	if (flags == CGROUP_DAEMON_CANCEL_UNCHANGE_PROCESS) {
+		cgre_remove_unchanged_process(pid);
+	} else {
+		if (cgre_store_unchanged_process(pid, flags))
+			goto close;
+	}
 	if (write(fd_client, CGRULE_SUCCESS_STORE_PID,
 			sizeof(CGRULE_SUCCESS_STORE_PID)) < 0) {
-		cgroup_dbg("write error: %s\n", strerror(errno));
+		flog(LOG_WARNING,
+				"Warning: cannot write to daemon socket: %s\n",
+				strerror(errno));
 		goto close;
 	}
 close:
@@ -583,7 +665,8 @@ static int cgre_create_netlink_socket_process_msg(void)
 	 */
 	sk_nl = socket(PF_NETLINK, SOCK_DGRAM, NETLINK_CONNECTOR);
 	if (sk_nl == -1) {
-		cgroup_dbg("socket sk_nl error: %s\n", strerror(errno));
+		flog(LOG_ERR, "Error: error opening netlink socket: %s\n",
+				strerror(errno));
 		return rc;
 	}
 
@@ -593,14 +676,15 @@ static int cgre_create_netlink_socket_process_msg(void)
 	my_nla.nl_pad = 0;
 
 	if (bind(sk_nl, (struct sockaddr *)&my_nla, sizeof(my_nla)) < 0) {
-		cgroup_dbg("binding sk_nl error: %s\n", strerror(errno));
+		flog(LOG_ERR, "Error: error binding netlink socket: %s\n",
+				strerror(errno));
 		goto close_and_exit;
 	}
 
 	nl_hdr = (struct nlmsghdr *)buff;
 	cn_hdr = (struct cn_msg *)NLMSG_DATA(nl_hdr);
 	mcop_msg = (enum proc_cn_mcast_op*)&cn_hdr->data[0];
-	cgroup_dbg("sending proc connector: PROC_CN_MCAST_LISTEN... ");
+	flog(LOG_DEBUG, "Sending proc connector: PROC_CN_MCAST_LISTEN...\n");
 	memset(buff, 0, sizeof(buff));
 	*mcop_msg = PROC_CN_MCAST_LISTEN;
 
@@ -617,21 +701,23 @@ static int cgre_create_netlink_socket_process_msg(void)
 	cn_hdr->seq = 0;
 	cn_hdr->ack = 0;
 	cn_hdr->len = sizeof(enum proc_cn_mcast_op);
-	cgroup_dbg("sending netlink message len=%d, cn_msg len=%d\n",
+	flog(LOG_DEBUG, "Sending netlink message len=%d, cn_msg len=%d\n",
 		nl_hdr->nlmsg_len, (int) sizeof(struct cn_msg));
 	if (send(sk_nl, nl_hdr, nl_hdr->nlmsg_len, 0) != nl_hdr->nlmsg_len) {
-		cgroup_dbg("failed to send proc connector mcast ctl op!: %s\n",
-			strerror(errno));
+		flog(LOG_ERR,
+				"Error: failed to send netlink message (mcast ctl op): %s\n",
+				strerror(errno));
 		goto close_and_exit;
 	}
-	cgroup_dbg("sent\n");
+	flog(LOG_DEBUG, "Message sent\n");
 
 	/*
 	 * Setup Unix domain socket.
 	 */
 	sk_unix = socket(PF_UNIX, SOCK_STREAM, 0);
 	if (sk_unix < 0) {
-		cgroup_dbg("socket sk_unix error: %s\n", strerror(errno));
+		flog(LOG_ERR, "Error creating UNIX socket: %s\n",
+				strerror(errno));
 		goto close_and_exit;
 	}
 	memset(&saddr, 0, sizeof(saddr));
@@ -640,13 +726,32 @@ static int cgre_create_netlink_socket_process_msg(void)
 	unlink(CGRULE_CGRED_SOCKET_PATH);
 	if (bind(sk_unix, (struct sockaddr *)&saddr,
 	    sizeof(saddr.sun_family) + strlen(CGRULE_CGRED_SOCKET_PATH)) < 0) {
-		cgroup_dbg("binding sk_unix error: %s\n", strerror(errno));
+		flog(LOG_ERR, "Error binding UNIX socket %s: %s\n",
+				CGRULE_CGRED_SOCKET_PATH, strerror(errno));
 		goto close_and_exit;
 	}
 	if (listen(sk_unix, 1) < 0) {
-		cgroup_dbg("listening sk_unix error: %s\n", strerror(errno));
+		flog(LOG_ERR, "Error listening on UNIX socket %s: %s\n",
+				CGRULE_CGRED_SOCKET_PATH, strerror(errno));
 		goto close_and_exit;
 	}
+
+	/* change the owner */
+	if (chown(CGRULE_CGRED_SOCKET_PATH, socket_user, socket_group) < 0) {
+		flog(LOG_ERR, "Error changing %s socket owner: %s\n",
+				CGRULE_CGRED_SOCKET_PATH, strerror(errno));
+		goto close_and_exit;
+	}
+	flog(LOG_DEBUG, "Socket %s owner successfully set to %d:%d\n",
+			CGRULE_CGRED_SOCKET_PATH, (int) socket_user,
+			(int) socket_group);
+
+	if (chmod(CGRULE_CGRED_SOCKET_PATH, 0660) < 0) {
+		flog(LOG_ERR, "Error changing %s socket permissions: %s\n",
+				CGRULE_CGRED_SOCKET_PATH, strerror(errno));
+		goto close_and_exit;
+	}
+
 	FD_ZERO(&readfds);
 	FD_SET(sk_nl, &readfds);
 	FD_SET(sk_unix, &readfds);
@@ -667,7 +772,7 @@ static int cgre_create_netlink_socket_process_msg(void)
 
 		memcpy(&fds, &readfds, sizeof(fd_set));
 		if (select(sk_max + 1, &fds, NULL, NULL, NULL) < 0) {
-			cgroup_dbg("selecting error: %s\n", strerror(errno));
+			flog(LOG_ERR, "Selecting error: %s\n", strerror(errno));
 			goto close_and_exit;
 		}
 		if (FD_ISSET(sk_nl, &fds)) {
@@ -679,9 +784,9 @@ static int cgre_create_netlink_socket_process_msg(void)
 	}
 
 close_and_exit:
-	if (sk_nl)
+	if (sk_nl > 0)
 		close(sk_nl);
-	if (sk_unix)
+	if (sk_unix > 0)
 		close(sk_unix);
 	return rc;
 }
@@ -690,7 +795,7 @@ close_and_exit:
  * Start logging. Opens syslog and/or log file and sets log level.
  * 	@param logp Path of the log file, NULL if no log file was specified
  * 	@param logf Syslog facility, NULL if no facility was specified
- * 	@param logv Log verbosity, 2 is the default, 0 = no logging, 4 = everything
+ * 	@param logv Log verbosity, 1 is the default, 0 = no logging, 4 = everything
  */
 static void cgre_start_log(const char *logp, int logf, int logv)
 {
@@ -699,11 +804,11 @@ static void cgre_start_log(const char *logp, int logf, int logv)
 
 	/* Log levels */
 	int loglevels[] = {
-		LOG_EMERG,		/* -qq */
-		LOG_ERR,		/* -q */
-		LOG_NOTICE,		/* default */
-		LOG_INFO,		/* -v */
-		LOG_DEBUG		/* -vv */
+		LOG_EMERG,		/* -q */
+		LOG_ERR,		/* default */
+		LOG_WARNING,	/* -v */
+		LOG_INFO,		/* -vv */
+		LOG_DEBUG		/* -vvv */
 	};
 
 	/* Set default logging destination if nothing was specified */
@@ -740,11 +845,12 @@ static void cgre_start_log(const char *logp, int logf, int logv)
 		logv = sizeof(loglevels)/sizeof(int)-1;
 
 	loglevel = loglevels[logv];
+	cgroup_set_logger(flog_cgroup, CGROUP_LOG_DEBUG, NULL);
 
-	flog(LOG_DEBUG, "CGroup Rules Engine Daemon log started");
+	flog(LOG_DEBUG, "CGroup Rules Engine Daemon log started\n");
 	tm = time(0);
-	flog(LOG_DEBUG, "Current time: %s", ctime(&tm));
-	flog(LOG_DEBUG, "Opened log file: %s, log facility: %d, log level: %d",
+	flog(LOG_DEBUG, "Current time: %s\n", ctime(&tm));
+	flog(LOG_DEBUG, "Opened log file: %s, log facility: %d,log level: %d\n",
 			logp, logfacility, loglevel);
 }
 
@@ -756,7 +862,7 @@ static void cgre_start_log(const char *logp, int logf, int logv)
  * 	@param logp Path of the log file, NULL if no log file was specified
  * 	@param logf Syslog facility, 0 if no facility was specified
  * 	@param daemon False to turn off daemon mode (no fork, leave FDs open)
- * 	@param logv Log verbosity, 2 is the default, 0 = no logging, 5 = everything
+ * 	@param logv Log verbosity, 1 is the default, 0 = no logging, 5 = everything
  * 	@return 0 on success, > 0 on error
  */
 int cgre_start_daemon(const char *logp, const int logf,
@@ -783,7 +889,7 @@ int cgre_start_daemon(const char *logp, const int logf,
 		/* Change the file mode mask. */
 		umask(0);
 	} else {
-		cgroup_dbg("Not using daemon mode.\n");
+		flog(LOG_DEBUG, "Not using daemon mode\n");
 		pid = getpid();
 	}
 
@@ -791,19 +897,19 @@ int cgre_start_daemon(const char *logp, const int logf,
 
 	if (!daemon) {
 		/* We can skip the rest, since we're not becoming a daemon. */
-		flog(LOG_INFO, "Proceeding with PID %d", getpid());
+		flog(LOG_INFO, "Proceeding with PID %d\n", getpid());
 		return 0;
 	} else {
 		/* Get a new SID for the child. */
 		if (setsid() < 0) {
-			flog(LOG_ERR, "Failed to get a new SID, error: %s",
+			flog(LOG_ERR, "Failed to get a new SID, error: %s\n",
 					strerror(errno));
 			return 2;
 		}
 
 		/* Change to the root directory. */
 		if (chdir("/") < 0) {
-			flog(LOG_ERR, "Failed to chdir to /, error: %s",
+			flog(LOG_ERR, "Failed to chdir to /, error: %s\n",
 					strerror(errno));
 			return 3;
 		}
@@ -816,7 +922,7 @@ int cgre_start_daemon(const char *logp, const int logf,
 	}
 
 	/* If we make it this far, we're a real daemon! Or we chose not to.  */
-	flog(LOG_INFO, "Proceeding with PID %d", getpid());
+	flog(LOG_INFO, "Proceeding with PID %d\n", getpid());
 	return 0;
 }
 
@@ -830,8 +936,8 @@ void cgre_flash_rules(int signum)
 	/* Current time */
 	time_t tm = time(0);
 
-	flog(LOG_NOTICE, "Reloading rules configuration.");
-	flog(LOG_DEBUG, "Current time: %s", ctime(&tm));
+	flog(LOG_INFO, "Reloading rules configuration\n");
+	flog(LOG_DEBUG, "Current time: %s\n", ctime(&tm));
 
 	/* Ask libcgroup to reload the rules table. */
 	cgroup_reload_cached_rules();
@@ -841,6 +947,26 @@ void cgre_flash_rules(int signum)
 		cgroup_print_rules_config(logfile);
 		fprintf(logfile, "\n");
 	}
+
+	/* Ask libcgroup to reload the template rules table. */
+	cgroup_reload_cached_templates(CGCONFIG_CONF_FILE);
+}
+
+/**
+ * Catch the SIGUSR1 signal and reload the rules configuration.  This function
+ * makes use of the logfile and flog() to print the new rules.
+ *	@param signum The signal that we caught (always SIGUSR1)
+ */
+void cgre_flash_templates(int signum)
+{
+	/* Current time */
+	time_t tm = time(0);
+
+	flog(LOG_INFO, "Reloading templates configuration.\n");
+	flog(LOG_DEBUG, "Current time: %s\n", ctime(&tm));
+
+	/* Ask libcgroup to reload the templates table. */
+	cgroup_reload_cached_templates(CGCONFIG_CONF_FILE);
 }
 
 /**
@@ -853,7 +979,7 @@ void cgre_catch_term(int signum)
 	/* Current time */
 	time_t tm = time(0);
 
-	flog(LOG_NOTICE, "Stopped CGroup Rules Engine Daemon at %s",
+	flog(LOG_INFO, "Stopped CGroup Rules Engine Daemon at %s\n",
 			ctime(&tm));
 
 	/* Close the log file, if we opened one */
@@ -913,7 +1039,7 @@ int main(int argc, char *argv[])
 	int facility = 0;
 
 	/* Verbose level */
-	int verbosity = 2;
+	int verbosity = 1;
 
 	/* For catching signals */
 	struct sigaction sa;
@@ -924,8 +1050,11 @@ int main(int argc, char *argv[])
 	/* Return codes */
 	int ret = 0;
 
+	struct passwd *pw;
+	struct group *gr;
+
 	/* Command line arguments */
-	const char *short_options = "hvqf:s::ndQ";
+	const char *short_options = "hvqf:s::ndQu:g:";
 	struct option long_options[] = {
 		{"help", no_argument, NULL, 'h'},
 		{"verbose", no_argument, NULL, 'v'},
@@ -935,6 +1064,8 @@ int main(int argc, char *argv[])
 		{"nodaemon", no_argument, NULL, 'n'},
 		{"debug", no_argument, NULL, 'd'},
 		{"nolog", no_argument, NULL, 'Q'},
+		{"socket-user", required_argument, NULL, 'u'},
+		{"socket-group", required_argument, NULL, 'g'},
 		{NULL, 0, NULL, 0}
 	};
 
@@ -944,6 +1075,18 @@ int main(int argc, char *argv[])
 				" group rules engine daemon\n");
 		ret = 1;
 		goto finished;
+	}
+
+	/*
+	 * Check environment variable CGROUP_LOGLEVEL. If it's set to DEBUG,
+	 * set appropriate verbosity level.
+	 */
+	char *level_str = getenv("CGROUP_LOGLEVEL");
+	if (level_str != NULL) {
+		if (cgroup_parse_log_level_str(level_str) == CGROUP_LOG_DEBUG) {
+			verbosity = 4;
+			logp = "-";
+		}
 	}
 
 	while (1) {
@@ -1000,7 +1143,28 @@ int main(int argc, char *argv[])
 			verbosity = 4;
 			logp = "-";
 			break;
-
+		case 'u': /* --socket-user */
+			pw = getpwnam(optarg);
+			if (pw == NULL) {
+				usage(stderr, "Cannot find user %s", optarg);
+				ret = 3;
+				goto finished;
+			}
+			socket_user = pw->pw_uid;
+			flog(LOG_DEBUG, "Using socket user %s id %d\n",
+					optarg, (int)socket_user);
+			break;
+		case 'g': /* --socket-group */
+			gr = getgrnam(optarg);
+			if (gr == NULL) {
+				usage(stderr, "Cannot find group %s", optarg);
+				ret = 3;
+				goto finished;
+			}
+			socket_group = gr->gr_gid;
+			flog(LOG_DEBUG, "Using socket group %s id %d\n",
+					optarg, (int)socket_group);
+			break;
 		default:
 			usage(stderr, "");
 			ret = 2;
@@ -1010,23 +1174,33 @@ int main(int argc, char *argv[])
 
 	/* Initialize libcgroup. */
 	if ((ret = cgroup_init()) != 0) {
-		fprintf(stderr, "Error: libcgroup initialization failed, %d\n",
-				ret);
+		fprintf(stderr, "Error: libcgroup initialization failed, %s\n",
+				cgroup_strerror(ret));
 		goto finished;
 	}
 
 	/* Ask libcgroup to load the configuration rules. */
 	if ((ret = cgroup_init_rules_cache()) != 0) {
 		fprintf(stderr, "Error: libcgroup failed to initialize rules"
-				"cache, %d\n", ret);
+				"cache from %s. %s\n", CGRULES_CONF_FILE,
+				cgroup_strerror(ret));
+		goto finished;
+	}
+
+	/* ask libcgroup to load template rules as well */
+	ret = cgroup_init_templates_cache(CGCONFIG_CONF_FILE);
+	if (ret != 0) {
+		fprintf(stderr, "Error: libcgroup failed to initialize teplate"\
+				"rules from %s. %s\n", CGCONFIG_CONF_FILE,
+				cgroup_strerror(ret));
 		goto finished;
 	}
 
 	/* Now, start the daemon. */
 	ret = cgre_start_daemon(logp, facility, daemon, verbosity);
 	if (ret < 0) {
-		fprintf(stderr, "Error: Failed to launch the daemon, %d\n",
-			ret);
+		fprintf(stderr, "Error: Failed to launch the daemon, %s\n",
+			cgroup_strerror(ret));
 		goto finished;
 	}
 
@@ -1038,8 +1212,21 @@ int main(int argc, char *argv[])
 	sa.sa_handler = &cgre_flash_rules;
 	sigemptyset(&sa.sa_mask);
 	if ((ret = sigaction(SIGUSR2, &sa, NULL))) {
-		flog(LOG_ERR, "Failed to set up signal handler for SIGUSR2."
-				" Error: %s", strerror(errno));
+		flog(LOG_ERR,
+				"Failed to set up signal handler for SIGUSR2. Error: %s\n",
+				strerror(errno));
+		goto finished;
+	}
+
+	/*
+	 * Set up the signal handler to reload templates cache upon
+	 * reception of a SIGUSR1 signal.
+	 */
+	sa.sa_handler = &cgre_flash_templates;
+	ret = sigaction(SIGUSR1, &sa, NULL);
+	if (ret) {
+		flog(LOG_ERR, "Failed to set up signal handler for SIGUSR1."\
+			" Error: %s\n", strerror(errno));
 		goto finished;
 	}
 
@@ -1051,8 +1238,9 @@ int main(int argc, char *argv[])
 	ret = sigaction(SIGINT, &sa, NULL);
 	ret |= sigaction(SIGTERM, &sa, NULL);
 	if (ret) {
-		flog(LOG_ERR, "Failed to set up the signal handler.  Error:"
-				" %s", strerror(errno));
+		flog(LOG_ERR,
+				"Failed to set up the signal handler. Error: %s\n",
+				strerror(errno));
 		goto finished;
 	}
 
@@ -1060,7 +1248,12 @@ int main(int argc, char *argv[])
 	if (logfile && loglevel >= LOG_INFO)
 		cgroup_print_rules_config(logfile);
 
-	flog(LOG_NOTICE, "Started the CGroup Rules Engine Daemon.");
+	/* Scan for running applications with rules */
+	ret = cgroup_change_all_cgroups();
+	if (ret)
+		flog(LOG_WARNING, "Failed to initialize running tasks.\n");
+
+	flog(LOG_INFO, "Started the CGroup Rules Engine Daemon.\n");
 
 	/* We loop endlesly in this function, unless we encounter an error. */
 	ret =  cgre_create_netlink_socket_process_msg();

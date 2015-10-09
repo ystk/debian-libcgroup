@@ -552,12 +552,14 @@ struct cgroup *new_cgroup(char *group, char *controller_name,
 			} else {
 				message(i++, FAIL, wr, retval ,
 							 info[NOMESSAGE]);
+				cgroup_free(&newcgroup);
 				return NULL;
 			}
 		 } else {
 			/* Since these wrappers do not return an int so -1 */
 			message(i++, FAIL, "add_controller", -1,
 							 info[NOMESSAGE]);
+			cgroup_free(&newcgroup);
 			return NULL;
 		}
 	} else {
@@ -845,6 +847,12 @@ void test_cgroup_get_cgroup(int ctl1, int ctl2, struct uid_gid_t ids, int i)
 		/* Create under another controller also */
 		ret = set_controller(ctl2, controller_name, control_file);
 		controller = cgroup_add_controller(cgroup_a, controller_name);
+		if (controller)
+			message(i++, PASS, "cgroup_add_controller()",
+					0, info[NOMESSAGE]);
+		else
+			message(i++, FAIL, "cgroup_add_controller()",
+					-1, info[NOMESSAGE]);
 	}
 	test_cgroup_create_cgroup(0, cgroup_a, "group_a", 0, 1, 1, 00);
 

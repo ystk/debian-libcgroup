@@ -15,6 +15,9 @@
 # Description: This script runs the the basic tests for testing libcgroup apis.
 #
 
+# TODO path to config.h have to be set properly
+OPAQUE_HIERARCHY=`grep "OPAQUE_HIERARCHY" /home/jsafrane/project/libcg-commit/config.h |\
+	 cut -d" " -f3 | sed  's|\"||g'`
 DEBUG=false;		# for debug messages
 FS_MOUNTED=0;		# 0 for not mounted, 1 for mounted, 2 for multimounted
 MOUNTPOINT=/dev/cgroup_controllers;	# Just to initialize
@@ -45,7 +48,7 @@ debug()
 check_mount_fs ()
 {
 	local NUM_MOUNT=0;
-	CGROUP=`cat /proc/mounts|grep -w cgroup|tr -s [:space:]|cut -d" " -f3`;
+	CGROUP=`cat /proc/mounts|grep -w ^cgroup|tr -s [:space:]|cut -d" " -f3`;
 
 	# get first word in case of multiple mounts
 	CGROUP=`echo $CGROUP|cut -d" " -f1`;
@@ -53,7 +56,7 @@ check_mount_fs ()
 	debug "check_mount_fs(): CGROUP is $CGROUP";
 	if [ "$CGROUP" = "cgroup" ]
 	then
-		NUM_MOUNT=`cat /proc/mounts|grep -w cgroup|wc -l`;
+		NUM_MOUNT=`cat /proc/mounts|grep -w ^cgroup|wc -l`;
 		debug "check_mount_fs(): fs mounted at $NUM_MOUNT places";
 
 		if [ $NUM_MOUNT -eq 1 ]
@@ -72,12 +75,31 @@ check_mount_fs ()
 
 umount_fs ()
 {
-	while check_mount_fs
+	PROC_ENTRY_NUMBER=`cat /proc/mounts|grep ^cgroup | wc -l`;
+	NUMBER=1;
+	#go and remove all ot opaque mount points
+	while [ $PROC_ENTRY_NUMBER -ge $NUMBER ]
 	do
-		PROC_ENTRY=`cat /proc/mounts|grep cgroup|\
-					tr -s [:space:]|cut -d" " -f2`;
-		# Get first mountpoint in case of multiple mounts
-		PROC_ENTRY=`echo $PROC_ENTRY|cut -d" " -f1`;
+		# Get $NUMBER-th mountpoint in case of multiple mount
+		PROC_ENTRY=`cat /proc/mounts|grep ^cgroup|\
+				tr -s [:space:]|cut -d" " -f2 |\
+				head -n$NUMBER | tail -n1`;
+		# if the hierarchy is opaque skip to next item
+		if [ -n "$OPAQUE_HIERARCHY" ]
+		then
+			# find whether is the NUMBER-th item opaque
+			PROC_ENTRY_OPT=`cat /proc/mounts|grep ^cgroup|\
+				tr -s [:space:]|cut -d" " -f4 |\
+				head -n$NUMBER | tail -n1`;
+			echo $PROC_ENTRY_OPT | grep $OPAQUE_HIERARCHY
+			# if yes skip it to the next item
+			if [ $? -eq 0 ]
+			then
+				let NUMBER=$NUMBER+1
+				continue
+			fi;
+		fi;
+		# remove the item
 		if [ ! -z "$PROC_ENTRY" ]
 		then
 			TARGET=$PROC_ENTRY;
@@ -87,7 +109,9 @@ umount_fs ()
 			rmdir  $TARGET;
 			debug "umounted $TARGET";
 		fi;
-	done
+		# go to the next item
+		let NUMBER=$NUMBER+1
+	done;
 	FS_MOUNTED=0;
 	TARGET=/dev/cgroup_controllers;	#??
 	echo "Cleanup done";

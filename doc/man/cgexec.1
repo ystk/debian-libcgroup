@@ -7,16 +7,16 @@
 cgexec \- run the task in given control groups
 
 .SH SYNOPSIS
-\fBcgexec\fR [\fB-g\fR <\fIcontrollers>:<path\fR>] [--sticky] \fBcommand\fR [\fIarguments\fR]
+\fBcgexec\fR [\fB-h\fR] [\fB-g\fR <\fIcontrollers>:<path\fR>] [--sticky] \fBcommand\fR [\fIarguments\fR]
 
 .SH DESCRIPTION
 The \fBcgexec\fR
 program executes the task \fBcommand\fR
-with arguments \fBarguments\fR in given control groups.
+with arguments \fBarguments\fR in the given control groups.
 
 .TP
 .B -g <controllers>:<path>
-defines control groups in which the task will be run.
+defines the control groups in which the task will be run.
 \fBcontrollers\fR is a list of controllers and
 \fBpath\fR is the relative path to control groups
 in the given controllers list.
@@ -25,19 +25,31 @@ This flag can be used multiple times to
 define multiple pairs of lists of controllers
 and relative paths.
 Instead of the list of all mounted controllers,
-wildcard \fBb"*b"\fR can be used.
+the wildcard \fBb"*b"\fR can be used.
 
-If this option is not used then
-\fBcgexec\fR will automatically place the task to the right
+If this option is not used,
+\fBcgexec\fR will automatically place the task in the right
 cgroup based on \fB/etc/cgrules.conf\fR.
+
+If \fB/etc/cgrules.conf\fR configuration file is used, there can be used
+template names. Then the control group name contains
+a template in destination tag (see \fBcgrules.conf\fR (5))
+and if the cgroup does not exist in execution time,
+it is created, based on \fB/etc/cgconfig.conf\fR specification.
+If the specifications are not present the group is created with the default
+kernel values.
+
+.TP
+.B -h, --help
+Display this help and exit.
 
 .TP
 .B --sticky
 If running the task \fBcommand\fR with this option, the daemon of
 service cgred (cgrulesengd process) does not change both the task
-of the \fBcommand\fR and the children tasks. Without this option,
+of the \fBcommand\fR and the child tasks. Without this option,
 the daemon does not change the task of the \fBcommand\fR but it
-changes the children tasks to the right cgroup based on
+changes the child tasks to the right cgroup based on
 \fB/etc/cgrules.conf\fR automatically.
 
 .LP
@@ -69,12 +81,15 @@ runs command \fBls -l\fR in control group test1
 in controllers cpu and memory and control group 
 test2 in controller swap.
 
-.SH FILES
-.LP
-.PD .1v
-.TP 20
-.B /etc/cgrules.conf
+.SH ENVIRONMENT VARIABLES
 .TP
+.B CGROUP_LOGLEVEL
+controls verbosity of the tool. Allowed values are \fBDEBUG\fR,
+\fBINFO\fR, \fBWARNING\fR or \fBERROR\fR.
+
+.SH FILES
+.TP
+.B /etc/cgrules.conf
 default libcgroup configuration file
 
 .SH SEE ALSO

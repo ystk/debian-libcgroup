@@ -15,6 +15,9 @@
  * his mistake.
  */
 
+#define _GNU_SOURCE
+
+#include <errno.h>
 #include <libcgroup.h>
 #include <libcgroup-internal.h>
 #include <inttypes.h>
@@ -23,13 +26,28 @@
 #include <string.h>
 #include <unistd.h>
 
+static void init_cgroup(struct cgroup *cgroup)
+{
+	cgroup->task_fperm = cgroup->control_fperm = cgroup->control_dperm = NO_PERMS;
+	cgroup->control_gid = cgroup->control_uid = cgroup->tasks_gid =
+			cgroup->tasks_uid = NO_UID_GID;
+}
+
+void init_cgroup_table(struct cgroup *cgroups, size_t count)
+{
+	size_t i;
+
+	for (i = 0; i < count; ++i)
+		init_cgroup(&cgroups[i]);
+}
+
 struct cgroup *cgroup_new_cgroup(const char *name)
 {
 	struct cgroup *cgroup = calloc(1, sizeof(struct cgroup));
-
 	if (!cgroup)
 		return NULL;
 
+	init_cgroup(cgroup);
 	strncpy(cgroup->name, name, sizeof(cgroup->name));
 
 	return cgroup;
@@ -65,6 +83,7 @@ struct cgroup_controller *cgroup_add_controller(struct cgroup *cgroup,
 		return NULL;
 
 	strncpy(controller->name, name, sizeof(controller->name));
+	controller->cgroup = cgroup;
 	controller->index = 0;
 
 	cgroup->controller[cgroup->index] = controller;
@@ -128,6 +147,7 @@ int cgroup_add_value_string(struct cgroup_controller *controller,
 
 	strncpy(cntl_value->name, name, sizeof(cntl_value->name));
 	strncpy(cntl_value->value, value, sizeof(cntl_value->value));
+	cntl_value->dirty = true;
 	controller->values[controller->index] = cntl_value;
 	controller->index++;
 
@@ -137,117 +157,58 @@ int cgroup_add_value_string(struct cgroup_controller *controller,
 int cgroup_add_value_int64(struct cgroup_controller *controller,
 					const char *name, int64_t value)
 {
-	int i;
-	unsigned ret;
-	struct control_value *cntl_value;
+	int ret;
+	char *val;
 
-	if (!controller)
-		return ECGINVAL;
-
-	if (controller->index >= CG_VALUE_MAX)
-		return ECGMAXVALUESEXCEEDED;
-
-	for (i = 0; i < controller->index && i < CG_VALUE_MAX; i++) {
-		if (!strcmp(controller->values[i]->name, name))
-			return ECGVALUEEXISTS;
+	ret = asprintf(&val, "%"PRId64, value);
+	if (ret < 0) {
+		last_errno = errno;
+		return ECGOTHER;
 	}
 
-	cntl_value = calloc(1, sizeof(struct control_value));
+	ret = cgroup_add_value_string(controller, name, val);
+	free(val);
 
-	if (!cntl_value)
-		return ECGCONTROLLERCREATEFAILED;
-
-	strncpy(cntl_value->name, name,
-			sizeof(cntl_value->name));
-	ret = snprintf(cntl_value->value,
-	  sizeof(cntl_value->value), "%" PRId64, value);
-
-	if (ret >= sizeof(cntl_value->value))
-		return ECGINVAL;
-
-	controller->values[controller->index] = cntl_value;
-	controller->index++;
-
-	return 0;
-
+	return ret;
 }
 
 int cgroup_add_value_uint64(struct cgroup_controller *controller,
 					const char *name, u_int64_t value)
 {
-	int i;
-	unsigned ret;
-	struct control_value *cntl_value;
+	int ret;
+	char *val;
 
-	if (!controller)
-		return ECGINVAL;
-
-	if (controller->index >= CG_VALUE_MAX)
-		return ECGMAXVALUESEXCEEDED;
-
-	for (i = 0; i < controller->index && i < CG_VALUE_MAX; i++) {
-		if (!strcmp(controller->values[i]->name, name))
-			return ECGVALUEEXISTS;
+	ret = asprintf(&val, "%" PRIu64, value);
+	if (ret < 0) {
+		last_errno = errno;
+		return ECGOTHER;
 	}
 
-	cntl_value = calloc(1, sizeof(struct control_value));
+	ret = cgroup_add_value_string(controller, name, val);
+	free(val);
 
-	if (!cntl_value)
-		return ECGCONTROLLERCREATEFAILED;
-
-	strncpy(cntl_value->name, name,	sizeof(cntl_value->name));
-	ret = snprintf(cntl_value->value, sizeof(cntl_value->value),
-						"%" PRIu64, value);
-
-	if (ret >= sizeof(cntl_value->value))
-		return ECGINVAL;
-
-	controller->values[controller->index] = cntl_value;
-	controller->index++;
-
-	return 0;
-
+	return ret;
 }
 
 int cgroup_add_value_bool(struct cgroup_controller *controller,
 						const char *name, bool value)
 {
-	int i;
-	unsigned ret;
-	struct control_value *cntl_value;
-
-	if (!controller)
-		return ECGINVAL;
-
-	if (controller->index >= CG_VALUE_MAX)
-		return ECGMAXVALUESEXCEEDED;
-
-	for (i = 0; i < controller->index && i < CG_VALUE_MAX; i++) {
-		if (!strcmp(controller->values[i]->name, name))
-			return ECGVALUEEXISTS;
-	}
-
-	cntl_value = calloc(1, sizeof(struct control_value));
-
-	if (!cntl_value)
-		return ECGCONTROLLERCREATEFAILED;
-
-	strncpy(cntl_value->name, name, sizeof(cntl_value->name));
+	int ret;
+	char *val;
 
 	if (value)
-		ret = snprintf(cntl_value->value,
-				sizeof(cntl_value->value), "1");
+		val = strdup("1");
 	else
-		ret = snprintf(cntl_value->value,
-				sizeof(cntl_value->value), "0");
+		val = strdup("0");
+	if (!val) {
+		last_errno = errno;
+		return ECGOTHER;
+	}
 
-	if (ret >= sizeof(cntl_value->value))
-		return ECGINVAL;
+	ret = cgroup_add_value_string(controller, name, val);
+	free(val);
 
-	controller->values[controller->index] = cntl_value;
-	controller->index++;
-
-	return 0;
+	return ret;
 }
 
 int cgroup_compare_controllers(struct cgroup_controller *cgca,
@@ -396,6 +357,7 @@ int cgroup_set_value_string(struct cgroup_controller *controller,
 		struct control_value *val = controller->values[i];
 		if (!strcmp(val->name, name)) {
 			strncpy(val->value, value, CG_VALUE_MAX);
+			val->dirty = true;
 			return 0;
 		}
 	}
@@ -430,7 +392,7 @@ int cgroup_set_value_int64(struct cgroup_controller *controller,
 					const char *name, int64_t value)
 {
 	int i;
-	unsigned ret;
+	int ret;
 
 	if (!controller)
 		return ECGINVAL;
@@ -445,6 +407,7 @@ int cgroup_set_value_int64(struct cgroup_controller *controller,
 			if (ret >= sizeof(val->value) || ret < 0)
 				return ECGINVAL;
 
+			val->dirty = true;
 			return 0;
 		}
 	}
@@ -478,7 +441,7 @@ int cgroup_set_value_uint64(struct cgroup_controller *controller,
 					const char *name, u_int64_t value)
 {
 	int i;
-	unsigned ret;
+	int ret;
 
 	if (!controller)
 		return ECGINVAL;
@@ -493,6 +456,7 @@ int cgroup_set_value_uint64(struct cgroup_controller *controller,
 			if (ret >= sizeof(val->value) || ret < 0)
 				return ECGINVAL;
 
+			val->dirty = true;
 			return 0;
 		}
 	}
@@ -532,7 +496,7 @@ int cgroup_set_value_bool(struct cgroup_controller *controller,
 						const char *name, bool value)
 {
 	int i;
-	unsigned ret;
+	int ret;
 
 	if (!controller)
 		return ECGINVAL;
@@ -552,6 +516,7 @@ int cgroup_set_value_bool(struct cgroup_controller *controller,
 			if (ret >= sizeof(val->value) || ret < 0)
 				return ECGINVAL;
 
+			val->dirty = true;
 			return 0;
 
 		}
@@ -591,12 +556,17 @@ struct cgroup *create_cgroup_from_name_value_pairs(const char *name,
 		strncpy(con, name_value[i].name, FILENAME_MAX);
 		strtok(con, ".");
 
-		/* add relevant controller */
-		cgc = cgroup_add_controller(src_cgroup, con);
+		/* find out whether we have to add the controller or
+		   cgroup already contains it */
+		cgc = cgroup_get_controller(src_cgroup, con);
 		if (!cgc) {
-			fprintf(stderr, "controller %s can't be add\n",
-					con);
-			goto scgroup_err;
+			/* add relevant controller */
+			cgc = cgroup_add_controller(src_cgroup, con);
+			if (!cgc) {
+				fprintf(stderr, "controller %s can't be add\n",
+						con);
+				goto scgroup_err;
+			}
 		}
 
 		/* add name-value pair to this controller */
@@ -636,3 +606,10 @@ char *cgroup_get_value_name(struct cgroup_controller *controller, int index)
 		return NULL;
 }
 
+char *cgroup_get_cgroup_name(struct cgroup *cgroup)
+{
+	if (!cgroup)
+		return NULL;
+
+	return cgroup->name;
+}

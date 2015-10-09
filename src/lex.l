@@ -16,15 +16,24 @@
 #include <libcgroup.h>
 #include <libcgroup-internal.h>
 #include "parse.h"
-int line_no = 1;
+#pragma GCC diagnostic ignored "-Wunused-function"
 
-#define YY_FATAL_ERROR(msg) cgroup_dbg(%s)
+int line_no = 1;
+jmp_buf parser_error_env;
+
+#define YY_FATAL_ERROR(msg) \
+	do { \
+		fprintf(stderr, "%s\n", msg); \
+		longjmp(parser_error_env, 1); \
+	} while(0);
 %}
+
+%option nounput noinput
 
 %%
 \n	{line_no++;}
 [ \t]	{/* DO NOTHING */}
-^#.*[ \t]*  {/* Comments */}
+^[ \t]*#.*[ \t]*  {/* Comments */}
 ^\*.*[ \t]* {/* Comments */}
 "mount"		{return MOUNT;}
 "task"		{return TASK;}
@@ -32,7 +41,10 @@ int line_no = 1;
 "perm"		{return PERM;}
 "group"		{return GROUP;}
 "namespace"	{return NAMESPACE;}
-[a-zA-Z0-9_\-\/\.]+ {yylval.name = strdup(yytext); return ID;}
+"template"	{return TEMPLATE;}
+"default"	{return DEFAULT;}
+[a-zA-Z0-9_\-\/\.\,\%\@]+ {yylval.name = strdup(yytext); return ID;}
+\"[^"]*\" {yylval.name = strdup(yytext+1); yylval.name[strlen(yylval.name)-1] = '\0'; return ID; }
 .	{return yytext[0];}
 %%
 

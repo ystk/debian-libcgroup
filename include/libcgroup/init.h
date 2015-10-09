@@ -5,7 +5,9 @@
 #error "Only <libcgroup.h> should be included directly."
 #endif
 
+#ifndef SWIG
 #include <features.h>
+#endif
 
 __BEGIN_DECLS
 
@@ -33,12 +35,19 @@ __BEGIN_DECLS
 /**
  * Initialize libcgroup. Information about mounted hierarchies are examined
  * and cached internally (just what's mounted where, not the groups themselves).
+ *
+ * If the cgroup logging was not set using cgroup_set_logger() or
+ * cgroup_set_default_logger() before calling cgroup_init(), the default logger
+ * is automatically set, logging CGROUP_LOG_ERROR messages.
  */
 int cgroup_init(void);
 
 /**
  * Returns path where is mounted given controller. Applications should rely on
  * @c libcgroup API and not call this function directly.
+ * Only the first mount point is returned, use
+ * cgroup_get_subsys_mount_point_begin(), cgroup_get_subsys_mount_point_next()
+ * and cgroup_get_subsys_mount_point_end() to get all of them.
  * @param controller Name of the controller
  * @param mount_point The string where the mount point location is stored.
  * 	Please note, the caller must free the mount_point.

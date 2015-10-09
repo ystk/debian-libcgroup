@@ -5,9 +5,11 @@
 #error "Only <libcgroup.h> should be included directly."
 #endif
 
+#ifndef SWIG
 #include <features.h>
 #include <sys/types.h>
 #include <stdbool.h>
+#endif
 
 __BEGIN_DECLS
 
@@ -24,6 +26,13 @@ enum cgroup_delete_flag {
 	 * Recursively delete all child groups.
 	 */
 	CGFLAG_DELETE_RECURSIVE	= 2,
+
+	/**
+	 * Delete the cgroup only if it is empty, i.e. it has no subgroups and
+	 * no processes inside. This flag cannot be used with
+	 * CGFLAG_DELETE_RECURSIVE.
+	 */
+	CGFLAG_DELETE_EMPTY_ONLY	= 4,
 };
 
 /**
@@ -107,6 +116,15 @@ struct cgroup;
  */
 struct cgroup_controller;
 
+/**
+ * Uninitialized file/directory permissions used for task/control files.
+ */
+#define NO_PERMS (-1U)
+
+/**
+ * Uninitialized UID/GID used for task/control files.
+ */
+#define NO_UID_GID (-1U)
 
 /**
  * Allocate new cgroup structure. This function itself does not create new
@@ -170,11 +188,14 @@ void cgroup_free_controllers(struct cgroup *cgroup);
  * Physically create a control group in kernel. The group is created in all
  * hierarchies, which cover controllers added by cgroup_add_controller().
  * All parameters set by cgroup_add_value_* functions are written.
- * The created groups has owner which was set by cgroup_set_uid_gid().
+ * The created groups has owner which was set by cgroup_set_uid_gid() and
+ * permissions set by cgroup_set_permissions.
  * @param cgroup
  * @param ignore_ownership When nozero, all errors are ignored when setting
  * 	owner of the group and/or its tasks file.
  * 	@todo what is ignore_ownership good for?
+ * @retval #ECGROUPNOTEQUAL if not all specified controller parameters
+ *      were successfully set.
  */
 int cgroup_create_cgroup(struct cgroup *cgroup, int ignore_ownership);
 
@@ -196,6 +217,8 @@ int cgroup_create_cgroup(struct cgroup *cgroup, int ignore_ownership);
  * @param ignore_ownership When nozero, all errors are ignored when setting
  * 	owner of the group and/or its tasks file.
  * 	@todo what is ignore_ownership good for?
+ * @retval #ECGROUPNOTEQUAL if not all inherited controller parameters
+ *      were successfully set (this is expected).
  */
 int cgroup_create_cgroup_from_parent(struct cgroup *cgroup,
 		int ignore_ownership);
@@ -272,7 +295,8 @@ int cgroup_delete_cgroup_ext(struct cgroup *cgroup, int flags);
 int cgroup_get_cgroup(struct cgroup *cgroup);
 
 /**
- * Copy all controllers, parameters and their values. All existing controllers
+ * Copy all controllers, their parameters and values. Group name, permissions
+ * and ownerships are not coppied. All existing controllers
  * in the source group are discarded.
  *
  * @param dst Destination group.
@@ -329,6 +353,22 @@ int cgroup_set_uid_gid(struct cgroup *cgroup, uid_t tasks_uid, gid_t tasks_gid,
  */
 int cgroup_get_uid_gid(struct cgroup *cgroup, uid_t *tasks_uid,
 		gid_t *tasks_gid, uid_t *control_uid, gid_t *control_gid);
+
+/**
+ * Stores given file permissions of the group's control and tasks files
+ * into the @c cgroup data structure. Use NO_PERMS if permissions shouldn't
+ * be changed or a value which applicable to chmod(2). Please note that
+ * the given permissions are masked with the file owner's permissions.
+ * For example if a control file has permissions 640 and control_fperm is
+ * 471 the result will be 460.
+ * @param cgroup
+ * @param control_dperm Directory permission for the group.
+ * @param control_fperm File permission for the control files.
+ * @param task_fperm File permissions for task file.
+ */
+void cgroup_set_permissions(struct cgroup *cgroup,
+		mode_t control_dperm, mode_t control_fperm,
+		mode_t task_fperm);
 
 /**
  * @}
@@ -503,6 +543,33 @@ int cgroup_get_value_name_count(struct cgroup_controller *controller);
  */
 char *cgroup_get_value_name(struct cgroup_controller *controller, int index);
 
+/**
+ * Get the list of process in a cgroup. This list is guaranteed to
+ * be sorted. It is not necessary that it is unique.
+ * @param name The name of the cgroup
+ * @param controller The name of the controller
+ * @param pids The list of pids. Should be uninitialized when passed
+ * to the API. Should be freed by the caller using free.
+ * @param size The size of the pids array returned by the API.
+ */
+int cgroup_get_procs(char *name, char *controller, pid_t **pids, int *size);
+
+/**
+ * Change permission of files and directories of given group
+ * @param cgroup The cgroup which permissions should be changed
+ * @param dir_mode The permission mode of group directory
+ * @param dirm_change Denotes whether the directory change should be done
+ * @param file_mode The permission mode of group files
+ * @param filem_change Denotes whether the directory change should be done
+ */
+int cg_chmod_recursive(struct cgroup *cgroup, mode_t dir_mode,
+	int dirm_change, mode_t file_mode, int filem_change);
+
+/**
+ *  Get the name of the cgroup from a given cgroup
+ *  @param cgroup The cgroup whose name is needed
+ */
+char *cgroup_get_cgroup_name(struct cgroup *cgroup);
 
 /**
  * @}

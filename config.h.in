@@ -1,8 +1,5 @@
 /* config.h.in.  Generated from configure.in by autoheader.  */
 
-/* Define to enable extra debugging output. */
-#undef CGROUP_DEBUG
-
 /* Cgrulesengd socket path */
 #undef CGRULE_CGRED_SOCKET_PATH
 
@@ -115,6 +112,9 @@
 /* Define to the sub-directory in which libtool stores uninstalled libraries.
    */
 #undef LT_OBJDIR
+
+/* Define to ignore specific hierarchy. */
+#undef OPAQUE_HIERARCHY
 
 /* Name of package */
 #undef PACKAGE
