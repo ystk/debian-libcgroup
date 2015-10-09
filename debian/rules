@@ -1,0 +1,69 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+# Uncomment this to turn on verbose mode.
+#export DH_VERBOSE=1
+
+
+DEB_HOST_MULTIARCH ?= $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+
+
+%:
+	dh ${@} --parallel --with autoreconf
+
+
+override_dh_auto_configure:
+	dh_auto_configure -- \
+			--libdir /lib/$(DEB_HOST_MULTIARCH) \
+			--disable-silent-rules \
+			--enable-opaque-hierarchy="name=systemd"
+
+
+override_dh_auto_test:
+	# Disabled. Requires root and also modifies the testbed.
+
+
+override_dh_installdirs:
+	dh_installdirs
+
+	# While the PAM module and the library are in /lib, according to the
+	# FHS, development files must go into usr/lib/<triplet>.
+	mkdir -p debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH)
+
+
+override_dh_auto_install:
+	dh_auto_install
+
+	# libcgroup-dev:
+	#   Move the development files from lib/ to usr/lib. The pkgconfig files
+	#   can be moved as-is, but we need to redirect the .so symlink. dh_link
+	#   will later correct this link for us (from relative to absolute).
+	cd debian/tmp/usr/lib/$(DEB_HOST_MULTIARCH) && \
+		mv    ../../../lib/$(DEB_HOST_MULTIARCH)/pkgconfig . && \
+		ln -s ../../../lib/$(DEB_HOST_MULTIARCH)/libcgroup.so.*.*.* libcgroup.so
+
+	# libpam-cgroup:
+	#   Rename the PAM module to pam_cgroup.so
+	cd debian/tmp/lib/$(DEB_HOST_MULTIARCH)/security && \
+		rm -f pam_cgroup.so && \
+		mv pam_cgroup.so.*.*.* pam_cgroup.so
+
+	# Remove unwanted/unused files (because of --fail-missing)
+	cd debian/tmp/lib/$(DEB_HOST_MULTIARCH) && \
+		rm -f *.so security/pam_cgroup.so.* *.la security/*.la
+
+
+override_dh_install:
+	dh_install --fail-missing
+
+
+override_dh_compress:
+	dh_compress -Xexamples
+
+
+override_dh_strip:
+	dh_strip --dbg-package=libcgroup-dbg
+
+
+override_dh_makeshlibs:
+	dh_makeshlibs -Xpam_cgroup.so

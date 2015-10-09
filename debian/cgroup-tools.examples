@@ -1,0 +1,8 @@
+samples/cgconfig.conf
+samples/cgconfig.sysconfig
+samples/cgred.conf
+samples/cgrules.conf
+samples/cgsnapshot_blacklist.conf
+
+scripts/init.d/cgconfig
+scripts/init.d/cgred

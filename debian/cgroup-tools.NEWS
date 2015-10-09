@@ -1,0 +1,12 @@
+libcgroup (0.38-1) unstable; urgency=low
+
+    This version sees the removal of both initscripts cgconfig and cgred from
+    the cgroup-bin package.  This means that cgroups will not be mounted by
+    default and no classification will occur during boot.  There are numerous
+    issues surrounding the boot-time classification including race conditions
+    and collisions with lxc and libvirt.
+
+    I may replace support for mounting available cgroups at boot time as time
+    allows.  This version provides a stable point from which to move forward.
+
+ -- Jon Bernard <jbernard@debian.org>  Mon, 18 Jun 2012 21:29:29 -0400

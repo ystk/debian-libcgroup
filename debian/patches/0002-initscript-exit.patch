@@ -1,0 +1,31 @@
+From: Daniel Baumann <mail@daniel-baumann.ch>
+Date: Thu, 19 Sep 2013 08:33:12 +0200
+Subject: Correcting sanity checks in example initscripts (Closes: #704926).
+
+Last-Update: 2014-07-26
+
+diff -Naurp libcgroup.orig/scripts/init.d/cgconfig.in libcgroup/scripts/init.d/cgconfig.in
+--- libcgroup.orig/scripts/init.d/cgconfig.in
++++ libcgroup/scripts/init.d/cgconfig.in
+@@ -36,6 +36,9 @@ CONFIG_FILE=/etc/cgconfig.conf
+ servicename=cgconfig
+ lockfile=/var/lock/subsys/$servicename
+ 
++# Sanity checks
++[ -x $CGCONFIGPARSER_BIN ] || exit 0
++
+ #
+ # Source LSB routines
+ #
+diff -Naurp libcgroup.orig/scripts/init.d/cgred.in libcgroup/scripts/init.d/cgred.in
+--- libcgroup.orig/scripts/init.d/cgred.in
++++ libcgroup/scripts/init.d/cgred.in
+@@ -37,7 +37,7 @@ CGRED_BIN=$sbindir/cgrulesengd
+ CGRED_CONF=/etc/cgrules.conf
+ 
+ # Sanity checks
+-[ -x $CGRED_BIN ] || exit 1
++[ -x $CGRED_BIN ] || exit 0
+ 
+ # Source function library & LSB routines
+ . /etc/rc.d/init.d/functions

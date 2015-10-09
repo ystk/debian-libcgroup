@@ -1,0 +1,122 @@
+Source: libcgroup
+Priority: optional
+Section: libs
+Maintainer: Christian Kastner <debian@kvr.at>
+Build-Depends:
+ debhelper (>= 9),
+ dh-autoreconf,
+ bison,
+ flex,
+ libpam-dev,
+Standards-Version: 3.9.6
+Homepage: http://libcg.sourceforge.net/
+Vcs-Browser: http://anonscm.debian.org/gitweb/?p=collab-maint/libcgroup.git
+Vcs-Git: git://anonscm.debian.org/collab-maint/libcgroup.git
+
+Package: cgroup-tools
+Section: admin
+Architecture: linux-any
+Multi-Arch: foreign
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Breaks: cgroup-bin (<< 0.40~rc1-3~)
+Replaces: cgroup-bin (<< 0.40~rc1-3~)
+Description: control and monitor control groups (tools)
+ Control Groups (cgroups) provide a mechanism for aggregating/partitioning sets
+ of tasks, and all their future children, into hierarchical groups with
+ specialized behaviour.
+ .
+ libcgroup allows one to manipulate, control, administrate and monitor cgroups
+ and the associated controllers.
+ .
+ This package contains the command-line tools.
+
+Package: libcgroup1
+Architecture: linux-any
+Multi-Arch: same
+Pre-Depends:
+ ${misc:Pre-Depends}
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: control and monitor control groups (library)
+ Control Groups (cgroups) provide a mechanism for aggregating/partitioning sets
+ of tasks, and all their future children, into hierarchical groups with
+ specialized behaviour.
+ .
+ libcgroup allows one to manipulate, control, administrate and monitor cgroups
+ and the associated controllers.
+ .
+ This package contains the shared library.
+
+Package: libcgroup-dbg
+Section: debug
+Priority: extra
+Architecture: linux-any
+Multi-Arch: same
+Depends:
+ ${misc:Depends},
+ cgroup-tools (= ${binary:Version}),
+ libcgroup1 (= ${binary:Version}),
+ libcgroup-dev (= ${binary:Version}),
+ libpam-cgroup (= ${binary:Version}),
+Description: control and monitor control groups (debug)
+ Control Groups (cgroups) provide a mechanism for aggregating/partitioning sets
+ of tasks, and all their future children, into hierarchical groups with
+ specialized behaviour.
+ .
+ libcgroup allows one to manipulate, control, administrate and monitor cgroups
+ and the associated controllers.
+ .
+ This package contains the debugging symbols.
+
+Package: libcgroup-dev
+Section: libdevel
+Architecture: linux-any
+Multi-Arch: same
+Depends:
+ ${misc:Depends},
+ libcgroup1 (= ${binary:Version}),
+Description: control and monitor control groups (development)
+ Control Groups (cgroups) provide a mechanism for aggregating/partitioning sets
+ of tasks, and all their future children, into hierarchical groups with
+ specialized behaviour.
+ .
+ libcgroup allows one to manipulate, control, administrate and monitor cgroups
+ and the associated controllers.
+ .
+ This package contains the development files.
+
+Package: libpam-cgroup
+Section: admin
+Architecture: linux-any
+Multi-Arch: same
+Depends:
+ ${misc:Depends},
+ ${shlibs:Depends},
+Description: control and monitor control groups (PAM)
+ Control Groups (cgroups) provide a mechanism for aggregating/partitioning sets
+ of tasks, and all their future children, into hierarchical groups with
+ specialized behaviour.
+ .
+ libcgroup allows one to manipulate, control, administrate and monitor cgroups
+ and the associated controllers.
+ .
+ This package contains the PAM module to move a user session into an existing
+ cgroup by attempting to match uid and gid against the defined cgroup rules
+ configuration.
+
+Package: cgroup-bin
+Section: oldlibs
+Priority: extra
+Architecture: all
+Depends:
+ ${misc:Depends},
+ cgroup-tools,
+Description: control and monitor control groups (transitional package)
+ Package to ease upgrading from older cgroup-bin packages to the new
+ cgroup-tools package.
+ .
+ This package can be purged at anytime once the cgroup-bin package has been
+ installed.

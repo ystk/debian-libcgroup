@@ -1,0 +1,22 @@
+From: Daniel Baumann <mail@daniel-baumann.ch>
+Date: Mon, 21 Oct 2013 17:23:33 +0200
+Subject: Make initscript exit if stop fails (Closes: #642946).
+
+Last-Update: 2014-07-26
+
+diff -Naurp libcgroup.orig/scripts/init.d/cgconfig.in libcgroup/scripts/init.d/cgconfig.in
+--- libcgroup.orig/scripts/init.d/cgconfig.in
++++ libcgroup/scripts/init.d/cgconfig.in
+@@ -135,10 +135,8 @@ start() {
+ 
+ stop() {
+     echo -n "Stopping cgconfig service: "
+-    cgclear
+-    rm -f "$lockfile"
+-    log_success_msg
+-    return 0
++    cgclear && rm -f "$lockfile" && log_success_msg && return 0
++    exit 1
+ }
+ 
+ trapped() {

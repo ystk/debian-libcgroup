@@ -1,0 +1,314 @@
+libcgroup (0.41-6) unstable; urgency=medium
+
+  * debian/control:
+    - Bump Standards-Version to 3.9.6 (no changes needed)
+    - Drop autotools-dev build dependency, dh-autoreconf is sufficient
+    - Fix typo in libcgroup-dbg package description
+  * debian/source/options:
+    - Drop, as xz compression is now the default
+  * debian/rules:
+    - Drop override for dh_builddeb, xz compression is now the default
+    - Disable autoconf silent rules. The verbose output both generally useful
+      and also specifically for build log scanning (hardening flags, etc.)
+    - Simplify the installation stage through refactoring
+  * debian/copyright:
+    - Fix license shortname (BSD-3-clause, not BSD)
+
+ -- Christian Kastner <debian@kvr.at>  Thu, 28 Aug 2014 13:09:41 -0700
+
+libcgroup (0.41-5) unstable; urgency=low
+
+  * debian/control:
+    - Set myself to new maintainer. Closes: #756092
+    - Use versioned Breaks instead of Conflicts
+    - Use versioned Replaces instead of unversioned one
+    - Update Vcs- fields to collab-maint
+    - Drop redundant Section
+    - Add Multi-Arch fields
+  * debian/patches (refreshed):
+    - Update headers of existing patches to play more nicely with gbp-pq
+  * debian/watch:
+    - Create watch file
+  * debian/copyright:
+    - Correct upstream license from LGPL-2.1+ to LGPL-2.1. Closes: #756915
+    - Add myself
+    - src/pam/pam_cgroup.c also contains LGPL-2.1 code
+  * debian/patches (added):
+    - 0005-Syntax-fixes-for-man-pages
+
+ -- Christian Kastner <debian@kvr.at>  Sat, 26 Jul 2014 15:10:48 +0200
+
+libcgroup (0.41-4) unstable; urgency=low
+
+  * I don't care anymore, not worth it.. orphaning.
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Fri, 25 Jul 2014 20:49:33 +0200
+
+libcgroup (0.41-3) unstable; urgency=low
+
+  * Correcting GPL boilerplate texts in copyright.
+  * Building libcgroup on linux-any only.
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Fri, 18 Jul 2014 11:34:54 +0200
+
+libcgroup (0.41-2) unstable; urgency=low
+
+  * Building with dh --parallel.
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Mon, 31 Mar 2014 21:02:06 +0200
+
+libcgroup (0.41-1) experimental; urgency=low
+
+  * Merging upstream version 0.41.
+  * Updating copyright for 2014.
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Thu, 16 Jan 2014 17:38:24 +0100
+
+libcgroup (0.41~rc1-1) experimental; urgency=low
+
+  * Updating to standards version 3.9.5.
+  * Merging upstream version 0.41~rc1.
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Sat, 28 Dec 2013 14:28:22 +0100
+
+libcgroup (0.40~rc1-5) experimental; urgency=low
+
+  * Adding patch to make initscript exit if stop fails (Closes: #642946).
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Mon, 21 Oct 2013 17:23:33 +0200
+
+libcgroup (0.40~rc1-4) experimental; urgency=low
+
+  * Renaming cgroup-bin to cgroup-tools for consistency.
+  * Adding debug package.
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Thu, 19 Sep 2013 12:02:22 +0200
+
+libcgroup (0.40~rc1-3) experimental; urgency=low
+
+  * Moving to priority optional.
+  * Sorting package sections in control.
+  * Sorting packages in control.
+  * Sorting depends fields.
+  * Wrapping build-depends.
+  * Simplyfing docs debhelper file.
+  * Removing extra space in makeshlibs override for consistency.
+  * Updating package descriptions.
+  * Simplyfing renaming in pam_cgroup.so in rules.
+  * Don't compress examples so they can be used directly via symlinks.
+  * Updating symbols file.
+  * Correcting libcgroup.so link.
+  * Building package with multiarch paths.
+  * Updating copyright to standards format 1.0.
+  * Updating todo file.
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Thu, 19 Sep 2013 11:54:16 +0200
+
+libcgroup (0.40~rc1-2) experimental; urgency=low
+
+  * Adding patch to refer to /sys/fs/cgroup as cgroup directory.
+  * Adding patch to correct sanity checks in example initscripts (Closes:
+    #704926).
+  * Adding cgroup-bin bug-script to show kernel cmdline in bug reports.
+  * Updating todo file.
+  * Adding patch to update template documentation to match template code
+    (Closes: #682748).
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Thu, 19 Sep 2013 08:33:12 +0200
+
+libcgroup (0.40~rc1-1) experimental; urgency=low
+
+  * Merging upstream version 0.40~rc1.
+  * Adding dpkg-source local-options to abort on upstream changes.
+  * Building source package with compression type xz.
+  * Building binary packages with compression type xz.
+  * Removing watch file.
+  * Building with dh-autoreconf.
+  * Updating to standards version 3.9.4.
+  * Adding vcs fields.
+  * Running dh_install with --fail-missing.
+  * Sorting overrides in rules alphabetically.
+  * Rewrapping rules file.
+  * Explicitly assigning news file to cgroup-bin.
+  * Using tabs in debhelper install files as separator.
+  * Updating homepage field.
+  * Adding todo file.
+  * Updating install files and overrides.
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Thu, 19 Sep 2013 07:28:00 +0200
+
+libcgroup (0.38-3) unstable; urgency=low
+
+  * New maintainer (Closes: #695231).
+
+ -- Daniel Baumann <mail@daniel-baumann.ch>  Mon, 16 Sep 2013 20:37:30 +0200
+
+libcgroup (0.38-2) unstable; urgency=low
+
+  * [2fa7e1a] Orphan package, set maintaier to QA Group
+
+ -- Jon Bernard <jbernard@debian.org>  Tue, 03 Sep 2013 15:48:02 -0400
+
+libcgroup (0.38-1) unstable; urgency=low
+
+  [ Jon Bernard ]
+  * [1165703] New upstream version 0.38 (Closes: 664886)
+  * [c985151] Remove obsolete debian patches
+  * [baa3edd] Remove initscripts cgconfig and cgred
+  * [ffe7f33] Include systemd README in cgroup-bin
+
+  [ Laurent Bigonville ]
+  * [0a54950] Disable compile time tests, the package FTBFS trying to load cgroups
+  * [1ed98ff] debian/libcgroup1.symbols: Add .symbols file (Closes: #665958)
+  * [c9eeddb] Call configure with --enable-opaque-hierarchy="name=systemd"
+    (Closes: #664886)
+
+ -- Jon Bernard <jbernard@debian.org>  Tue, 19 Jun 2012 20:38:38 -0400
+
+libcgroup (0.37.1-2) unstable; urgency=low
+
+  [ Laurent Bigonville ]
+  * [07baa0c] Bump Standards-Version to 3.9.3 (no further changes)
+  * [b0189dc] Bump debhelper compatibility to 9. (Closes: #654819)
+  * [b072a58] Put the signal as the last parameter for killproc in cgreg
+    initscript (Closes: #627264)
+  * [98cdcd2] Call kill with the signal name instead of the signal number in
+    cgreg initscript (Closes: #607816)
+
+ -- Jon Bernard <jbernard@debian.org>  Fri, 27 Apr 2012 18:08:20 -0400
+
+libcgroup (0.37.1-1) unstable; urgency=low
+
+  * [f7cc41d] New upstream version 0.37.1 (Closes: #615987)
+  * [24dfa81] Refresh existing patches
+  * [25be27b] Add patch to fix cgconfig.conf manpage
+  * [4a06e2d] Add patch to fix spelling mistake in cgcreate.
+    Thanks to Nikita A Menkovich <nikita@menkovich.ru> (Closes: #610967)
+  * [25e7f37] Remove article from start of description synopsis
+
+ -- Jon Bernard <jbernard@debian.org>  Sun, 10 Apr 2011 09:55:33 -0400
+
+libcgroup (0.37-2) unstable; urgency=low
+
+  * [01392d] Fix typo in debian initscript patch
+    (Closes: #607814) - thanks to Edward Allcutt
+
+ -- Jon Bernard <jbernard@debian.org>  Wed, 22 Dec 2010 10:39:46 -0500
+
+libcgroup (0.37-1) unstable; urgency=low
+
+  * [59d325] New upstream version 0.37
+  * [bb3923] Set source format to 3.0 (quilt)
+  * [084091] Bump Standards-Version to 3.9.1
+  * [3504c3] Update watchfile to look for bzip2 files
+  * [41151b] Convert patches to git-buldpackage's patch queue format
+    (Closes: #604635)
+
+ -- Jon Bernard <jbernard@debian.org>  Wed, 15 Dec 2010 11:20:42 -0500
+
+libcgroup (0.36.2-3) unstable; urgency=low
+
+  * [a1bd2b] Add device controller to the default configuration
+    (LP: #607849) - thanks to Serge Hallyn
+
+ -- Jon Bernard <jbernard@debian.org>  Sun, 25 Jul 2010 16:51:29 -0400
+
+libcgroup (0.36.2-2) unstable; urgency=low
+
+  * [ae0921] Replace sysconfig with default in cgconfig initscript patch
+    (Closes: #588494)
+  * [412460] Fix config file reference in cgred initscript patch
+  * [3822c1] Update cgred default configuration file
+  * [17fdaf] Add cgconfig default configuration file
+  * [577ac2] Bump standards version to 3.9.0, no changes necessary
+  * [f28c7d] Fix typo in copyright file
+  * [14244b] Remove redundant reference to BSD license in copyright file
+
+ -- Jon Bernard <jbernard@debian.org>  Sun, 18 Jul 2010 09:41:48 -0400
+
+libcgroup (0.36.2-1) unstable; urgency=low
+
+  * [df1c38] Imported Upstream version 0.36.2
+  * [afe1f0] Remove cgdelete manpage, included upstream
+  * [afecca] Remove lscgroup manpage, included upstream
+  * [e68c9a] Remove lssubsys manpage, included upstream
+  * [54f5da] Fix install override to handle changed location of pam
+    module
+
+ -- Jon Bernard <jbernard@debian.org>  Wed, 23 Jun 2010 14:16:40 -0400
+
+libcgroup (0.36.1-2) unstable; urgency=low
+
+  * [8a9de6] Install shared object and symlinks in /lib (Closes: #583513)
+
+ -- Jon Bernard <jbernard@debian.org>  Thu, 27 May 2010 20:13:39 -0400
+
+libcgroup (0.36.1-1) unstable; urgency=low
+
+  * [d1d65a] Add Vcs fields to debian/control
+  * [2ca672] Exclude release candidates from debian/watch
+  * [36e728] Imported Upstream version 0.36.1
+  * [41bdfa] Remove missing-includes patch, included upstream
+
+ -- Jon Bernard <jbernard@debian.org>  Fri, 21 May 2010 15:54:53 -0400
+
+libcgroup (0.36-1) unstable; urgency=low
+
+  * [be0275] Fix typo in debian/watch
+  * [1db135] Imported Upstream version 0.36 (Closes: #582440)
+  * [63e1bd] Remove cgget manpage, included upstream
+  * [66f232] Remove manpages patch, included upstream
+  * [5ab7ce] Remove pkg-config patch, included upstream
+  * [47ea10] Remove sa_restorer patch, included upstream
+  * [124d53] Add patch for missing includes, fixes build
+
+ -- Jon Bernard <jbernard@debian.org>  Thu, 20 May 2010 15:57:47 -0400
+
+libcgroup (0.35-3) unstable; urgency=low
+
+  * [b5eb1b] Drop .la files (Closes: #579812)
+  * [c9f683] Backport libcgroup.pc pkg-config file from upstream
+    (Closes: #579753)
+
+ -- Jon Bernard <jbernard@debian.org>  Mon, 03 May 2010 11:01:18 -0400
+
+libcgroup (0.35-2) unstable; urgency=low
+
+  * Use memset to initialize sigaction struct (Closes: #549581)
+
+ -- Jon Bernard <jbernard@debian.org>  Mon, 08 Mar 2010 14:28:53 -0500
+
+libcgroup (0.35-1) unstable; urgency=low
+
+  * Imported Upstream version 0.35
+  * Remove manpage for cgclear, included upstream
+  * Remove obsolete debian patches
+  * Add missing manpages from upstream
+  * Update debian/watch to support new upstream versioning scheme
+  * Run autoreconf before configure
+  * Stop removing RPATH from certain files, fixed upstream
+  * Remove chrpath and docbook-to-man from build dependencies
+  * Bump standards version to 3.8.4, no changes necessary
+  * Remove redundant section definition for libcgroup1
+  * debian/libcgroup1.install: replace hardcoded version with wildcard
+  * debian/libcgroup1.install: include .la file in libcgroup1
+  * debian/cgroup-bin.manpages: update installed manpages
+  * Update manpages patch to escape hyphens
+  * Depend on 'cgconfig' in cgred initscript (Closes: #549480)
+  * Refresh cgconfig initscript patch
+  * Include patch tags on vendor patches (DEP3)
+
+ -- Jon Bernard <jbernard@debian.org>  Fri, 05 Mar 2010 14:49:56 -0500
+
+libcgroup (0.34-2) unstable; urgency=low
+
+  * Fix initscript dependencies (Closes: #549480) - thanks to Petter
+    Reinholdtsen <pere@hungry.com>
+
+ -- Jon Bernard <jbernard@debian.org>  Wed, 28 Oct 2009 14:31:34 -0400
+
+libcgroup (0.34-1) unstable; urgency=low
+
+  * Initial release (Closes: #536167)
+
+ -- Jon Bernard <jbernard@debian.org>  Tue, 08 Sep 2009 22:40:43 -0400

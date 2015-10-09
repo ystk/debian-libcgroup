@@ -1,0 +1,9 @@
+#!/bin/sh
+
+if [ -e /proc/cmdline ]
+then
+	# see if user has or has not certain controller related kernel parameters
+	echo "/proc/cmdline: $(cat /proc/cmdline)"
+fi
+
+exit 0
