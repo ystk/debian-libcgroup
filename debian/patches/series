@@ -3,3 +3,4 @@
 0003-template-doc.patch
 0004-initscript-return.patch
 0005-Syntax-fixes-for-man-pages.patch
+CVE-2018-14348.patch

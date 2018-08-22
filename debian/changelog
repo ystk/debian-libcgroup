@@ -1,3 +1,12 @@
+libcgroup (0.41-6+deb8u1) jessie-security; urgency=high
+
+  * Non-maintainer upload by the LTS team.
+  * Fix CVE-2018-14348:
+    It was discovered that the cgrulesengd daemon would create a log file which
+    would allow any user to write to it. (Closes: #906308)
+
+ -- Markus Koschany <apo@debian.org>  Mon, 20 Aug 2018 18:57:35 +0200
+
 libcgroup (0.41-6) unstable; urgency=medium
 
   * debian/control:
